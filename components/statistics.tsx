@@ -1,16 +1,87 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { TrendingUp, TrendingDown, Calendar, Flame, BarChart3, Loader2 } from "lucide-react"
+import { useEffect, useState, useMemo } from "react"
+import { BarChart3, Loader2, Users, History } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { TeamSummaryCard } from "@/components/team-summary-card"
+import { GeneralSummaryCard } from "@/components/general-summary-card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+interface TeamStats {
+  team: "A" | "B"
+  weekly: { had_meal: number; no_meal: number; total_days: number }
+  monthly: { had_meal: number; no_meal: number; total_days: number }
+  yearly: { had_meal: number; no_meal: number; total_days: number }
+}
+
+interface GeneralStats {
+  had_meal: number
+  no_meal: number
+  total_days: number
+}
 
 export function Statistics() {
+  const [activeTab, setActiveTab] = useState<"general" | "teams" | "history">("general")
   const [loading, setLoading] = useState(true)
-  const [weeklyData, setWeeklyData] = useState<Array<{ day: string; volt: number; nem: number }>>([])
-  const [monthlyData, setMonthlyData] = useState<Array<{ month: string; volt: number; nem: number }>>([])
-  const [currentStreak, setCurrentStreak] = useState(0)
-  const [longestStreak, setLongestStreak] = useState(0)
-  const [yearlyStats, setYearlyStats] = useState<{ year: number; count: number }>({ year: 2026, count: 0 })
+  const [allRecords, setAllRecords] = useState<Array<{ date: string; had_meal: boolean; team: string | null }>>([])
+
+  // General stats
+  const [generalWeekly, setGeneralWeekly] = useState<GeneralStats>({ had_meal: 0, no_meal: 0, total_days: 0 })
+  const [generalMonthly, setGeneralMonthly] = useState<GeneralStats>({ had_meal: 0, no_meal: 0, total_days: 0 })
+  const [generalYearly, setGeneralYearly] = useState<GeneralStats>({ had_meal: 0, no_meal: 0, total_days: 0 })
+
+  // Team stats
+  const [teamStats, setTeamStats] = useState<TeamStats[]>([])
+
+  // History stats logic
+  const [historyYear, setHistoryYear] = useState<string>(new Date().getFullYear().toString())
+
+  const historyYears = useMemo(() => {
+    const uniqueYears = Array.from(new Set(allRecords.map(r => new Date(r.date).getFullYear()))).sort((a, b) => b - a)
+    if (uniqueYears.length === 0 || !uniqueYears.includes(new Date().getFullYear())) {
+      if (!uniqueYears.includes(new Date().getFullYear())) {
+        uniqueYears.unshift(new Date().getFullYear())
+      }
+    }
+    return uniqueYears.map(String)
+  }, [allRecords])
+
+  const historyMonthlyStats = useMemo(() => {
+    const yearRecords = allRecords.filter(r => new Date(r.date).getFullYear().toString() === historyYear)
+
+    const stats = []
+    const monthNames = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December']
+
+    for (let i = 0; i < 12; i++) {
+      const monthRecs = yearRecords.filter(r => new Date(r.date).getMonth() === i)
+
+      if (monthRecs.length === 0 && historyYear !== new Date().getFullYear().toString()) continue;
+      if (monthRecs.length === 0 && i > new Date().getMonth() && historyYear === new Date().getFullYear().toString()) continue;
+
+      stats.push({
+        name: monthNames[i],
+        teamA: {
+          had: monthRecs.filter(r => r.team === 'A' && r.had_meal).length,
+          no: monthRecs.filter(r => r.team === 'A' && !r.had_meal).length
+        },
+        teamB: {
+          had: monthRecs.filter(r => r.team === 'B' && r.had_meal).length,
+          no: monthRecs.filter(r => r.team === 'B' && !r.had_meal).length
+        },
+        total: {
+          had: monthRecs.filter(r => r.had_meal).length,
+          no: monthRecs.filter(r => !r.had_meal).length
+        }
+      })
+    }
+    return stats
+  }, [historyYear, allRecords])
 
   useEffect(() => {
     const fetchStatistics = async () => {
@@ -18,10 +89,10 @@ export function Statistics() {
         // Fetch all records from 2026 onwards
         const { data: records, error } = await supabase
           .from('meal_records')
-          .select('date, had_meal')
-          .gte('date', '2026-01-01')
+          .select('date, had_meal, team')
+          // .gte('date', '2026-01-01') // Removed to allow history view
           .order('date', { ascending: true })
-          .returns<Array<{ date: string; had_meal: boolean }>>()
+          .returns<Array<{ date: string; had_meal: boolean; team: string | null }>>()
 
         if (error) throw error
 
@@ -30,7 +101,8 @@ export function Statistics() {
           return
         }
 
-        // Calculate weekly data (current week)
+        setAllRecords(records)
+
         const today = new Date()
         const dayOfWeek = today.getDay()
         const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
@@ -38,88 +110,102 @@ export function Statistics() {
         startOfWeek.setDate(today.getDate() + diff)
         startOfWeek.setHours(0, 0, 0, 0)
 
-        const weekDays = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V']
-        const weekly = weekDays.map((day, index) => {
-          const date = new Date(startOfWeek)
-          date.setDate(startOfWeek.getDate() + index)
-          const dateStr = date.toISOString().split('T')[0]
-
-          const record = records.find(r => r.date === dateStr)
-          return {
-            day,
-            volt: record?.had_meal ? 1 : 0,
-            nem: record && !record.had_meal ? 1 : 0
-          }
-        })
-        setWeeklyData(weekly)
-
-        // Calculate monthly data (last 6 months from 2026)
-        const monthNames = ['Jan', 'Feb', 'Már', 'Ápr', 'Máj', 'Jún', 'Júl', 'Aug', 'Szep', 'Okt', 'Nov', 'Dec']
         const currentMonth = today.getMonth()
         const currentYear = today.getFullYear()
 
-        const monthly = []
-        for (let i = 5; i >= 0; i--) {
-          const month = currentMonth - i
-          const year = month < 0 ? currentYear - 1 : currentYear
-          const adjustedMonth = month < 0 ? 12 + month : month
+        // === GENERAL STATS ===
+        const weekEnd = new Date(startOfWeek)
+        weekEnd.setDate(weekEnd.getDate() + 7)
 
-          // Only show data from 2026 onwards
-          if (year < 2026) continue
+        // Weekly general stats
+        const weekRecords = records.filter(r => {
+          const recordDate = new Date(r.date)
+          return recordDate >= startOfWeek && recordDate < weekEnd
+        })
+        setGeneralWeekly({
+          had_meal: weekRecords.filter(r => r.had_meal).length,
+          no_meal: weekRecords.filter(r => !r.had_meal).length,
+          total_days: weekRecords.length
+        })
 
-          const monthRecords = records.filter(r => {
-            const recordDate = new Date(r.date)
-            return recordDate.getMonth() === adjustedMonth && recordDate.getFullYear() === year
-          })
+        // Monthly general stats
+        const monthRecords = records.filter(r => {
+          const recordDate = new Date(r.date)
+          return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear
+        })
+        setGeneralMonthly({
+          had_meal: monthRecords.filter(r => r.had_meal).length,
+          no_meal: monthRecords.filter(r => !r.had_meal).length,
+          total_days: monthRecords.length
+        })
 
-          monthly.push({
-            month: monthNames[adjustedMonth],
-            volt: monthRecords.filter(r => r.had_meal).length,
-            nem: monthRecords.filter(r => !r.had_meal).length
-          })
-        }
-        setMonthlyData(monthly)
-
-        // Calculate streaks
-        let current = 0
-        let longest = 0
-        let tempStreak = 0
-
-        const sortedRecords = [...records].sort((a, b) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        )
-
-        // Current streak (from today backwards)
-        for (const record of sortedRecords) {
-          if (record.had_meal) {
-            current++
-          } else {
-            break
-          }
-        }
-
-        // Longest streak
-        for (const record of records) {
-          if (record.had_meal) {
-            tempStreak++
-            longest = Math.max(longest, tempStreak)
-          } else {
-            tempStreak = 0
-          }
-        }
-
-        setCurrentStreak(current)
-        setLongestStreak(longest)
-
-        // Yearly stats (2026)
+        // Yearly general stats
         const yearRecords = records.filter(r => {
           const recordDate = new Date(r.date)
-          return recordDate.getFullYear() === 2026
+          return recordDate.getFullYear() === currentYear
         })
-        setYearlyStats({
-          year: 2026,
-          count: yearRecords.filter(r => r.had_meal).length
+        setGeneralYearly({
+          had_meal: yearRecords.filter(r => r.had_meal).length,
+          no_meal: yearRecords.filter(r => !r.had_meal).length,
+          total_days: yearRecords.length
         })
+
+        // Calculate team summary stats
+
+        const teams: TeamStats[] = [
+          {
+            team: "A",
+            weekly: { had_meal: 0, no_meal: 0, total_days: 0 },
+            monthly: { had_meal: 0, no_meal: 0, total_days: 0 },
+            yearly: { had_meal: 0, no_meal: 0, total_days: 0 }
+          },
+          {
+            team: "B",
+            weekly: { had_meal: 0, no_meal: 0, total_days: 0 },
+            monthly: { had_meal: 0, no_meal: 0, total_days: 0 },
+            yearly: { had_meal: 0, no_meal: 0, total_days: 0 }
+          }
+        ]
+
+        records.forEach(record => {
+          const recordDate = new Date(record.date)
+          const isThisWeek = recordDate >= startOfWeek && recordDate < weekEnd
+          const isThisMonth = recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear
+          const isThisYear = recordDate.getFullYear() === currentYear
+
+          if (record.team === "A" || record.team === "B") {
+            const teamIndex = record.team === "A" ? 0 : 1
+
+            if (isThisWeek) {
+              teams[teamIndex].weekly.total_days++
+              if (record.had_meal) {
+                teams[teamIndex].weekly.had_meal++
+              } else {
+                teams[teamIndex].weekly.no_meal++
+              }
+            }
+
+            if (isThisMonth) {
+              teams[teamIndex].monthly.total_days++
+              if (record.had_meal) {
+                teams[teamIndex].monthly.had_meal++
+              } else {
+                teams[teamIndex].monthly.no_meal++
+              }
+            }
+
+            if (isThisYear) {
+              teams[teamIndex].yearly.total_days++
+              if (record.had_meal) {
+                teams[teamIndex].yearly.had_meal++
+              } else {
+                teams[teamIndex].yearly.no_meal++
+              }
+            }
+          }
+        })
+
+        setTeamStats(teams)
 
       } catch (error) {
         console.error('Error fetching statistics:', error)
@@ -131,7 +217,7 @@ export function Statistics() {
     fetchStatistics()
   }, [])
 
-  const maxMonthly = Math.max(...monthlyData.map((d) => d.volt + d.nem), 1)
+
 
   if (loading) {
     return (
@@ -151,117 +237,312 @@ export function Statistics() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-[#1F2937]">Statisztikák</h1>
-            <p className="text-sm text-[#6B7280]">Étkezési adatok áttekintése (2026-tól)</p>
+            <p className="text-sm text-[#6B7280]">Étkezési adatok áttekintése</p>
           </div>
         </div>
       </div>
 
-      {/* Streak Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-              <Flame className="w-5 h-5 text-orange-500" />
-            </div>
-            <div>
-              <p className="text-xs text-[#6B7280] font-medium">Aktuális sorozat</p>
-              <p className="text-2xl font-bold text-[#1F2937]">{currentStreak} nap</p>
-            </div>
-          </div>
-          {currentStreak > 0 && (
-            <div className="flex items-center gap-1 text-emerald-600">
-              <TrendingUp className="w-4 h-4" />
-              <span className="text-xs font-medium">Folytatódik!</span>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-              <Flame className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-xs text-[#6B7280] font-medium">Leghosszabb sorozat</p>
-              <p className="text-2xl font-bold text-[#1F2937]">{longestStreak} nap</p>
-            </div>
-          </div>
-          <p className="text-xs text-[#6B7280]">2026</p>
+      {/* Tab Navigation */}
+      <div className="flex justify-center">
+        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-1 shadow-sm grid grid-cols-2 sm:inline-flex gap-1 sm:gap-0 w-full sm:w-auto">
+          <button
+            onClick={() => setActiveTab("general")}
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "general"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-[#6B7280] hover:text-[#1F2937]"
+              }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span className="truncate">Általános</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("teams")}
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "teams"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-[#6B7280] hover:text-[#1F2937]"
+              }`}
+          >
+            <Users className="w-4 h-4" />
+            <span className="truncate">Csapatok</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`col-span-2 sm:col-span-auto px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "history"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-[#6B7280] hover:text-[#1F2937]"
+              }`}
+          >
+            <History className="w-4 h-4" />
+            Előzmények
+          </button>
         </div>
       </div>
 
-      {/* Weekly Stats */}
-      <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-[#1F2937] mb-4">Heti összesítés</h2>
-        <div className="flex items-end justify-between gap-2 h-32">
-          {weeklyData.map((day, index) => (
-            <div key={index} className="flex-1 flex flex-col items-center gap-2">
-              <div className="w-full flex flex-col gap-1">
-                {day.volt > 0 && (
-                  <div
-                    className="w-full bg-emerald-500 rounded-t-lg transition-all duration-300"
-                    style={{ height: `${day.volt * 60}px` }}
-                  />
+      {/* Content based on active tab */}
+      {activeTab === "history" ? (
+        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[#1F2937] flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600" />
+              Előzmények visszatekintése
+            </h2>
+            <div className="flex items-center gap-2 text-sm text-[#6B7280]">
+              <span>Válassz évet:</span>
+              <Select value={historyYear} onValueChange={setHistoryYear}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="Év" />
+                </SelectTrigger>
+                <SelectContent>
+                  {historyYears.map(year => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 flex items-center justify-center gap-4">
+            <span className="font-medium">A csapat: <span className="font-normal text-blue-600">Zs csapat</span></span>
+            <span className="text-blue-300">|</span>
+            <span className="font-medium">B csapat: <span className="font-normal text-blue-600">Reni csapat</span></span>
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block border rounded-xl overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 font-medium text-gray-700">Hónap</th>
+                  <th className="px-4 py-3 font-medium text-blue-600 text-center bg-blue-50/50">A csapat</th>
+                  <th className="px-4 py-3 font-medium text-purple-600 text-center bg-purple-50/50">B csapat</th>
+                  <th className="px-4 py-3 font-medium text-gray-700 text-center">Összesen</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {historyMonthlyStats.length > 0 ? (
+                  historyMonthlyStats.map((stat, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900">{stat.name}</td>
+
+                      {/* Team A */}
+                      <td className="px-4 py-3 text-center bg-blue-50/30">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-emerald-600 font-medium">{stat.teamA.had}</span>
+                          <span className="text-gray-400">/</span>
+                          <span className="text-rose-600 font-medium">{stat.teamA.no}</span>
+                        </div>
+                      </td>
+
+                      {/* Team B */}
+                      <td className="px-4 py-3 text-center bg-purple-50/30">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-emerald-600 font-medium">{stat.teamB.had}</span>
+                          <span className="text-gray-400">/</span>
+                          <span className="text-rose-600 font-medium">{stat.teamB.no}</span>
+                        </div>
+                      </td>
+
+                      {/* Total */}
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                            <span className="text-gray-700">{stat.total.had}</span>
+                          </div>
+                          <span className="text-gray-300">|</span>
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                            <span className="text-gray-700">{stat.total.no}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      Nincs adat erre az évre.
+                    </td>
+                  </tr>
                 )}
-                {day.nem > 0 && (
-                  <div
-                    className="w-full bg-rose-500 rounded-t-lg transition-all duration-300"
-                    style={{ height: `${day.nem * 60}px` }}
-                  />
-                )}
-                {day.volt === 0 && day.nem === 0 && <div className="w-full bg-[#E5E7EB] rounded-t-lg h-2" />}
-              </div>
-              <span className="text-xs font-medium text-[#6B7280]">{day.day}</span>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-[#E5E7EB]">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm bg-emerald-500" />
-            <span className="text-xs text-[#6B7280]">Volt kaja</span>
+              </tbody>
+            </table>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm bg-rose-500" />
-            <span className="text-xs text-[#6B7280]">Nem volt</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Monthly Stats */}
-      {monthlyData.length > 0 && (
-        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-[#1F2937] mb-4">Havi összesítés</h2>
-          <div className="flex items-end justify-between gap-3 h-40">
-            {monthlyData.map((month, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full flex flex-col gap-0.5" style={{ height: "120px" }}>
-                  <div
-                    className="w-full bg-emerald-500 rounded-t-lg transition-all duration-300"
-                    style={{ height: `${(month.volt / maxMonthly) * 100}%` }}
-                  />
-                  <div
-                    className="w-full bg-rose-500 rounded-b-lg transition-all duration-300"
-                    style={{ height: `${(month.nem / maxMonthly) * 100}%` }}
-                  />
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {historyMonthlyStats.length > 0 ? (
+              historyMonthlyStats.map((stat, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-gray-50/50">
+                  <h3 className="font-semibold text-gray-900 mb-3">{stat.name}</h3>
+                  <div className="space-y-3">
+                    {/* Team A */}
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-blue-50/50 border border-blue-100">
+                      <span className="text-xs font-medium text-blue-700">A csapat</span>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-emerald-600 font-bold">{stat.teamA.had}</span>
+                        <span className="text-gray-300">/</span>
+                        <span className="text-rose-600 font-bold">{stat.teamA.no}</span>
+                      </div>
+                    </div>
+
+                    {/* Team B */}
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-purple-50/50 border border-purple-100">
+                      <span className="text-xs font-medium text-purple-700">B csapat</span>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-emerald-600 font-bold">{stat.teamB.had}</span>
+                        <span className="text-gray-300">/</span>
+                        <span className="text-rose-600 font-bold">{stat.teamB.no}</span>
+                      </div>
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                      <span className="text-xs font-medium text-gray-500">Összesen</span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                          <span className="text-sm font-medium text-gray-700">{stat.total.had}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                          <span className="text-sm font-medium text-gray-700">{stat.total.no}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs font-medium text-[#6B7280]">{month.month}</span>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                Nincs adat erre az évre.
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Yearly Overview */}
-      <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-[#1F2937] mb-4">Éves áttekintés</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-            <p className="text-xs text-emerald-700 font-medium mb-1">{yearlyStats.year}</p>
-            <p className="text-2xl font-bold text-emerald-800">{yearlyStats.count} nap</p>
-            <p className="text-xs text-emerald-600">volt kaja</p>
+          <div className="flex items-center justify-center gap-4 text-xs text-gray-500 pt-2">
+            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Volt kaja</div>
+            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500"></span> Nem volt</div>
           </div>
         </div>
-      </div>
-    </div>
+      ) : activeTab === "general" ? (
+        <>
+          {/* Weekly Stats */}
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-indigo-600" />
+              Heti összesítő
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <GeneralSummaryCard
+                hadMeal={generalWeekly.had_meal}
+                noMeal={generalWeekly.no_meal}
+                totalDays={generalWeekly.total_days}
+                period="weekly"
+              />
+            </div>
+          </div>
+
+          {/* Monthly Stats */}
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-indigo-600" />
+              Havi összesítő
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <GeneralSummaryCard
+                hadMeal={generalMonthly.had_meal}
+                noMeal={generalMonthly.no_meal}
+                totalDays={generalMonthly.total_days}
+                period="monthly"
+              />
+            </div>
+          </div>
+
+          {/* Yearly Stats */}
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-indigo-600" />
+              Éves összesítő
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <GeneralSummaryCard
+                hadMeal={generalYearly.had_meal}
+                noMeal={generalYearly.no_meal}
+                totalDays={generalYearly.total_days}
+                period="yearly"
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Weekly Team Summary */}
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-indigo-600" />
+              Heti összesítő
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teamStats.map((team) => (
+                <TeamSummaryCard
+                  key={`weekly-${team.team}`}
+                  team={team.team}
+                  teamName={team.team === "A" ? "Zs csapat" : "Reni csapat"}
+                  hadMeal={team.weekly.had_meal}
+                  noMeal={team.weekly.no_meal}
+                  totalDays={team.weekly.total_days}
+                  period="weekly"
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Monthly Team Summary */}
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-indigo-600" />
+              Havi összesítő
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teamStats.map((team) => (
+                <TeamSummaryCard
+                  key={`monthly-${team.team}`}
+                  team={team.team}
+                  teamName={team.team === "A" ? "Zs csapat" : "Reni csapat"}
+                  hadMeal={team.monthly.had_meal}
+                  noMeal={team.monthly.no_meal}
+                  totalDays={team.monthly.total_days}
+                  period="monthly"
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Yearly Team Summary */}
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-indigo-600" />
+              Éves összesítő
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teamStats.map((team) => (
+                <TeamSummaryCard
+                  key={`yearly-${team.team}`}
+                  team={team.team}
+                  teamName={team.team === "A" ? "Zs csapat" : "Reni csapat"}
+                  hadMeal={team.yearly.had_meal}
+                  noMeal={team.yearly.no_meal}
+                  totalDays={team.yearly.total_days}
+                  period="yearly"
+                />
+              ))}
+            </div>
+          </div>
+        </>
+      )
+      }
+    </div >
   )
 }
+

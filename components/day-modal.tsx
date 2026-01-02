@@ -1,10 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Check, XIcon, Trash2 } from "lucide-react"
+import { X, Check, XIcon, Trash2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 
 interface DayData {
@@ -14,12 +21,13 @@ interface DayData {
   reason?: string
   recordedBy?: string
   recordedAt?: string
+  team?: "A" | "B"
 }
 
 interface DayModalProps {
   day: DayData
   onClose: () => void
-  onSave: (day: DayData, hadFood: boolean, details: string) => void
+  onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B") => void
   onDelete?: (day: DayData) => void
 }
 
@@ -28,6 +36,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
     day.status === "volt" ? true : day.status === "nem" ? false : null,
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
+  const [team, setTeam] = useState<"A" | "B" | null>(day.team || null)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [foodSuggestions, setFoodSuggestions] = useState<string[]>([])
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
@@ -73,7 +82,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
 
   const handleSave = () => {
     if (hadFood !== null) {
-      onSave(day, hadFood, details)
+      onSave(day, hadFood, details, team || undefined)
     }
   }
 
@@ -176,6 +185,32 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             </div>
           )}
 
+          {/* Team Selection */}
+          {hadFood !== null && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <Label htmlFor="team" className="text-sm font-medium text-[#1F2937]">
+                {hadFood ? "Melyik csapattól kaptuk?" : "Melyik csapat dolgozik ezen a napon?"}
+              </Label>
+              <Select value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
+                <SelectTrigger className="w-full h-12 rounded-xl border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500">
+                  <SelectValue placeholder="Válassz csapatot" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">A csapat</SelectItem>
+                  <SelectItem value="B">B csapat</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Info Box */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-800">
+                  <strong>A csapat</strong> = Zs csapat, <strong>B csapat</strong> = Reni csapat
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Info Text */}
           <p className="text-xs text-[#9CA3AF] text-center">
             Egy naphoz egy bejegyzés tartozik, de később módosítható.
@@ -214,6 +249,6 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   )
 }

@@ -50,6 +50,7 @@ export interface Database {
                     meal_name: string | null
                     reason: string | null
                     recorded_by: string
+                    team: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -60,6 +61,7 @@ export interface Database {
                     meal_name?: string | null
                     reason?: string | null
                     recorded_by: string
+                    team?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -70,6 +72,7 @@ export interface Database {
                     meal_name?: string | null
                     reason?: string | null
                     recorded_by?: string
+                    team?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -77,6 +80,43 @@ export interface Database {
                     {
                         foreignKeyName: "meal_records_recorded_by_fkey"
                         columns: ["recorded_by"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            holidays: {
+                Row: {
+                    id: string
+                    date: string
+                    name: string
+                    description: string | null
+                    created_by: string
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    date: string
+                    name: string
+                    description?: string | null
+                    created_by: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    date?: string
+                    name?: string
+                    description?: string | null
+                    created_by?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "holidays_created_by_fkey"
+                        columns: ["created_by"]
                         referencedRelation: "profiles"
                         referencedColumns: ["id"]
                     }

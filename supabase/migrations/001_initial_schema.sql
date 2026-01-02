@@ -25,14 +25,31 @@ CREATE TABLE meal_records (
     meal_name TEXT,
     reason TEXT,
     recorded_by UUID REFERENCES auth.users(id) NOT NULL,
+    team TEXT CHECK (team IN ('A', 'B')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(date)
 );
 
+COMMENT ON COLUMN meal_records.team IS 'Team responsible: A = Zs team, B = Reni team';
+
+-- Create holidays table
+CREATE TABLE holidays (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_by UUID REFERENCES auth.users(id) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE holidays IS 'Holidays that should be excluded from statistics';
+
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE meal_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE holidays ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
 CREATE POLICY "Users can view all profiles"
@@ -73,10 +90,46 @@ CREATE POLICY "Anyone can delete today or past meal records"
     ON meal_records FOR DELETE
     USING (date <= CURRENT_DATE);
 
+-- Holidays policies
+CREATE POLICY "Anyone can view holidays"
+    ON holidays FOR SELECT
+    USING (true);
+
+CREATE POLICY "Admins can insert holidays"
+    ON holidays FOR INSERT
+    WITH CHECK (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+        AND profiles.is_admin = true
+      )
+    );
+
+CREATE POLICY "Admins can update holidays"
+    ON holidays FOR UPDATE
+    USING (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+        AND profiles.is_admin = true
+      )
+    );
+
+CREATE POLICY "Admins can delete holidays"
+    ON holidays FOR DELETE
+    USING (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+        AND profiles.is_admin = true
+      )
+    );
+
 -- Indexes
 CREATE INDEX idx_meal_records_date ON meal_records(date DESC);
 CREATE INDEX idx_meal_records_recorded_by ON meal_records(recorded_by);
 CREATE INDEX idx_profiles_email ON profiles(email);
+CREATE INDEX idx_holidays_date ON holidays(date DESC);
 
 -- Functions & Triggers
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -113,5 +166,10 @@ CREATE TRIGGER update_profiles_updated_at
 
 CREATE TRIGGER update_meal_records_updated_at
     BEFORE UPDATE ON meal_records
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_holidays_updated_at
+    BEFORE UPDATE ON holidays
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

@@ -17,6 +17,9 @@ interface DayData {
   reason?: string
   recordedBy?: string
   recordedAt?: string
+  team?: "A" | "B"
+  isHoliday?: boolean
+  holidayName?: string
 }
 
 export function MealTable() {
@@ -70,9 +73,24 @@ export function MealTable() {
             recorded_by: string
             created_at: string
             updated_at: string
+            team: string | null
           }>>()
 
         if (error) throw error
+
+        // Fetch holidays
+        const { data: holidays, error: holidaysError } = await supabase
+          .from('holidays')
+          .select('date, name')
+          .gte('date', startDate.toISOString().split('T')[0])
+          .lte('date', endDate.toISOString().split('T')[0])
+
+        if (holidaysError) throw holidaysError
+
+        // Create a map of holidays by date
+        const holidaysMap = new Map(
+          holidays?.map(h => [h.date, h.name]) || []
+        )
 
         // Create a map of records by date
         const recordsMap = new Map(
@@ -86,17 +104,20 @@ export function MealTable() {
           date.setDate(date.getDate() + i)
           const dateStr = date.toISOString().split('T')[0]
           const record = recordsMap.get(dateStr)
+          const holidayName = holidaysMap.get(dateStr)
 
           let status: FoodStatus = "empty"
           let food: string | undefined
           let reason: string | undefined
           let recordedBy: string | undefined
           let recordedAt: string | undefined
+          let team: "A" | "B" | undefined
 
           if (record) {
             status = record.had_meal ? "volt" : "nem"
             food = record.meal_name || undefined
             reason = record.reason || undefined
+            team = (record.team as "A" | "B") || undefined
 
             // Get the user who recorded it
             const { data: profile } = await supabase
@@ -118,7 +139,10 @@ export function MealTable() {
             food,
             reason,
             recordedBy,
-            recordedAt
+            recordedAt,
+            team,
+            isHoliday: !!holidayName,
+            holidayName
           })
         }
 
@@ -169,7 +193,7 @@ export function MealTable() {
   const monthFoodDays = currentMonthDays.filter((d) => d.status === "volt").length
   const emptyDays = currentMonthDays.filter((d) => d.status === "empty" && d.date <= today).length
 
-  const handleSave = async (dayData: DayData, hadFood: boolean, details: string) => {
+  const handleSave = async (dayData: DayData, hadFood: boolean, details: string, team?: "A" | "B") => {
     if (!user) return
 
     try {
@@ -182,7 +206,8 @@ export function MealTable() {
           had_meal: hadFood,
           meal_name: hadFood ? details : null,
           reason: !hadFood ? details : null,
-          recorded_by: user.id
+          recorded_by: user.id,
+          team: team || null
         } as never, {
           onConflict: 'date'
         })
@@ -200,6 +225,7 @@ export function MealTable() {
               reason: !hadFood ? details : undefined,
               recordedBy: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Te',
               recordedAt: new Date().toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" }),
+              team: team || undefined,
             }
             : d,
         ),
@@ -250,6 +276,7 @@ export function MealTable() {
               reason: undefined,
               recordedBy: undefined,
               recordedAt: undefined,
+              team: undefined,
             }
             : d,
         ),
@@ -306,6 +333,14 @@ export function MealTable() {
   }
 
   const handleDayClick = (day: DayData) => {
+    if (day.isHoliday) {
+      toast({
+        title: "Szünnap",
+        description: `${day.holidayName} - Ezen a napon nem lehet kajat rögzíteni`,
+        variant: "destructive"
+      })
+      return
+    }
     if (isFutureDate(day.date)) {
       toast({
         title: "Nem módosítható",
@@ -392,7 +427,7 @@ export function MealTable() {
       </div>
 
       {/* View Toggle */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-center">
         <div className="bg-[#F3F4F6] rounded-xl p-1 inline-flex">
           <button
             onClick={() => setView("week")}
@@ -417,10 +452,12 @@ export function MealTable() {
           <button
             key={index}
             onClick={() => handleDayClick(day)}
-            disabled={isFutureDate(day.date)}
-            className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${isFutureDate(day.date)
-              ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
-              : getStatusStyles(day.status)
+            disabled={isFutureDate(day.date) || day.isHoliday}
+            className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${day.isHoliday
+              ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
+              : isFutureDate(day.date)
+                ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
+                : getStatusStyles(day.status)
               } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
           >
             <div className="flex items-center justify-between mb-2">
@@ -428,9 +465,17 @@ export function MealTable() {
               {isToday(day.date) && (
                 <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Ma</span>
               )}
+              {day.isHoliday && (
+                <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">Szünnap</span>
+              )}
             </div>
             <p className="text-sm font-semibold text-[#1F2937] mb-1">{formatDate(day.date)}</p>
-            {day.recordedBy && (
+            {day.isHoliday && (
+              <p className="text-xs text-purple-600 font-medium truncate">
+                {day.holidayName}
+              </p>
+            )}
+            {day.recordedBy && !day.isHoliday && (
               <p className="text-xs text-[#6B7280] truncate">
                 {day.recordedBy} · {day.recordedAt}
               </p>
@@ -445,10 +490,12 @@ export function MealTable() {
           <button
             key={index}
             onClick={() => handleDayClick(day)}
-            disabled={isFutureDate(day.date)}
-            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-center gap-4 ${isFutureDate(day.date)
-              ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
-              : getStatusStyles(day.status)
+            disabled={isFutureDate(day.date) || day.isHoliday}
+            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-center gap-4 ${day.isHoliday
+              ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
+              : isFutureDate(day.date)
+                ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
+                : getStatusStyles(day.status)
               } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
           >
             {getStatusIcon(day.status)}
@@ -459,21 +506,28 @@ export function MealTable() {
                   <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Ma</span>
                 )}
               </div>
-              {day.recordedBy && (
+              {day.isHoliday && (
+                <p className="text-xs text-purple-600 font-medium">
+                  {day.holidayName}
+                </p>
+              )}
+              {day.recordedBy && !day.isHoliday && (
                 <p className="text-xs text-[#6B7280]">
                   {day.recordedBy} · {day.recordedAt}
                 </p>
               )}
             </div>
             <span
-              className={`text-xs font-medium px-2 py-1 rounded-full ${day.status === "volt"
-                ? "bg-emerald-100 text-emerald-700"
-                : day.status === "nem"
-                  ? "bg-rose-100 text-rose-700"
-                  : "bg-amber-100 text-amber-700"
+              className={`text-xs font-medium px-2 py-1 rounded-full ${day.isHoliday
+                ? "bg-purple-100 text-purple-700"
+                : day.status === "volt"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : day.status === "nem"
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-amber-100 text-amber-700"
                 }`}
             >
-              {day.status === "volt" ? "Volt" : day.status === "nem" ? "Nem volt" : "Kitöltetlen"}
+              {day.isHoliday ? "Szünnap" : day.status === "volt" ? "Volt" : day.status === "nem" ? "Nem volt" : "Kitöltetlen"}
             </span>
           </button>
         ))}

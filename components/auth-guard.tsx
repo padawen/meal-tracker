@@ -18,52 +18,91 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     useEffect(() => {
         const checkUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
+            try {
+                // Create a timeout promise that rejects after 10 seconds
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Auth check timeout')), 10000)
+                })
 
-            if (!session) {
-                router.push('/login')
-                return
-            }
+                // Race the session check against the timeout
+                const sessionPromise = supabase.auth.getSession()
 
-            setUser(session.user)
+                // Use Promise.race to prevent infinite loading
+                const result = await Promise.race([sessionPromise, timeoutPromise]) as { data: { session: any }, error: any }
+                const { data: { session }, error } = result
 
-            // Check if user is approved
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('is_approved, is_admin')
-                .eq('id', session.user.id)
-                .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
+                if (error) throw error
 
-            // Admins are always approved
-            if (profile?.is_admin || profile?.is_approved) {
-                setIsApproved(true)
-            }
+                if (!session) {
+                    console.log('No session found in AuthGuard, redirecting to login')
+                    setUser(null)
+                    setLoading(false)
+                    router.push('/login')
+                    return
+                }
 
-            setLoading(false)
-        }
-
-        checkUser()
-
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (!session) {
-                router.push('/login')
-            } else {
                 setUser(session.user)
 
-                // Check approval status
-                const { data: profile } = await supabase
+                // Check if user is approved
+                const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('is_approved, is_admin')
                     .eq('id', session.user.id)
                     .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
 
-                if (profile?.is_admin || profile?.is_approved) {
-                    setIsApproved(true)
-                } else {
-                    setIsApproved(false)
+                if (profileError) {
+                    console.error("Error fetching profile:", profileError)
+                    // Don't block strictly on profile error, but log it. 
+                    // Or act safe and assume not approved? 
+                    // Let's proceed but defaulting to false is safe.
                 }
 
+                // Admins are always approved
+                if (profile?.is_admin || profile?.is_approved) {
+                    setIsApproved(true)
+                }
+            } catch (err) {
+                console.error("Unexpected error in checkUser:", err)
+                // Don't await signOut, as it might hang if network is down
+                supabase.auth.signOut()
+                setUser(null)
+                router.push('/login')
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        checkUser()
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            try {
+                if (event === 'SIGNED_OUT' || !session) {
+                    console.log('Session ended or user signed out in AuthGuard, redirecting to login')
+                    setUser(null)
+                    setLoading(false)
+                    router.push('/login')
+                } else {
+                    setUser(session.user)
+
+                    // Check approval status
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('is_approved, is_admin')
+                        .eq('id', session.user.id)
+                        .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
+
+                    if (profile?.is_admin || profile?.is_approved) {
+                        setIsApproved(true)
+                    } else {
+                        setIsApproved(false)
+                    }
+
+                    setLoading(false)
+                }
+            } catch (err) {
+                console.error("Error in auth state change:", err)
+                // In case of error during refresh, try to fail safe
                 setLoading(false)
             }
         })
@@ -72,6 +111,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
             subscription.unsubscribe()
         }
     }, [router])
+
+
 
     // Separate useEffect for realtime subscription - runs when user changes
     useEffect(() => {
@@ -183,8 +224,14 @@ export function useAuth() {
 
     useEffect(() => {
         const getUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
-            setUser(session?.user ?? null)
+            const { data: { session }, error } = await supabase.auth.getSession()
+            if (error) {
+                console.error("Auth error in useAuth:", error)
+                await supabase.auth.signOut()
+                setUser(null)
+            } else {
+                setUser(session?.user ?? null)
+            }
         }
 
         getUser()

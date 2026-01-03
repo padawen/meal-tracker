@@ -19,6 +19,9 @@ export function useIsAdmin() {
                 return
             }
 
+            setLoading(true)
+
+
             try {
                 const { data, error } = await supabase
                     .from('profiles')

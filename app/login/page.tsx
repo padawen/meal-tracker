@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 
+import { getRedirectUrl } from '@/lib/utils'
+
 export default function LoginPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -18,7 +20,7 @@ export default function LoginPage() {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
+                    redirectTo: getRedirectUrl(),
                 },
             })
 

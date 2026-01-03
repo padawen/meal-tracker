@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, CheckCircle2, XCircle, AlertCircle, Flame, Loader2 } from "lucide-react"
+import { Calendar, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react"
 import { DayModal } from "@/components/day-modal"
 import { ConfettiEffect } from "@/components/confetti-effect"
 import { supabase } from "@/lib/supabase"
@@ -162,19 +162,19 @@ export function MealTable() {
     fetchMealRecords()
   }, [])
 
-  // Calculate current week (Monday to Sunday containing today)
+  // Calculate 5-day rolling window (Today +/- 2 days)
   const getCurrentWeekDays = () => {
-    const dayOfWeek = today.getDay()
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek // Monday is start of week
-    const startOfWeek = new Date(today)
-    startOfWeek.setDate(today.getDate() + diff)
-    startOfWeek.setHours(0, 0, 0, 0)
+    const todayZero = new Date(today)
+    todayZero.setHours(0, 0, 0, 0)
 
     return days.filter(day => {
-      const dayTime = day.date.getTime()
-      const weekStart = startOfWeek.getTime()
-      const weekEnd = weekStart + (7 * 24 * 60 * 60 * 1000) // 7 days later
-      return dayTime >= weekStart && dayTime < weekEnd
+      const d = new Date(day.date)
+      d.setHours(0, 0, 0, 0)
+
+      const diffTime = d.getTime() - todayZero.getTime()
+      const diffDays = Math.round(diffTime / (1000 * 3600 * 24))
+
+      return diffDays >= -2 && diffDays <= 2
     })
   }
 
@@ -191,7 +191,7 @@ export function MealTable() {
 
   const weekFoodDays = currentWeekDays.filter((d) => d.status === "volt").length
   const monthFoodDays = currentMonthDays.filter((d) => d.status === "volt").length
-  const emptyDays = currentMonthDays.filter((d) => d.status === "empty" && d.date <= today).length
+  const emptyDays = currentMonthDays.filter((d) => d.status === "empty" && d.date <= today && !d.isHoliday).length
 
   const handleSave = async (dayData: DayData, hadFood: boolean, details: string, team?: "A" | "B") => {
     if (!user) return
@@ -420,25 +420,19 @@ export function MealTable() {
         </div>
       </div>
 
-      {/* Streak Indicator */}
-      <div className="flex items-center gap-2 px-1">
-        <Flame className="w-4 h-4 text-orange-500" />
-        <span className="text-sm font-medium text-[#6B7280]">5 napos sorozat!</span>
-      </div>
-
       {/* View Toggle */}
       <div className="flex justify-center">
         <div className="bg-[#F3F4F6] rounded-xl p-1 inline-flex">
           <button
             onClick={() => setView("week")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${view === "week" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${view === "week" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
           >
             Heti nézet
           </button>
           <button
             onClick={() => setView("month")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${view === "month" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${view === "month" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
           >
             Havi nézet
@@ -453,7 +447,7 @@ export function MealTable() {
             key={index}
             onClick={() => handleDayClick(day)}
             disabled={isFutureDate(day.date) || day.isHoliday}
-            className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${day.isHoliday
+            className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left cursor-pointer ${day.isHoliday
               ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
               : isFutureDate(day.date)
                 ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
@@ -491,7 +485,7 @@ export function MealTable() {
             key={index}
             onClick={() => handleDayClick(day)}
             disabled={isFutureDate(day.date) || day.isHoliday}
-            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-center gap-4 ${day.isHoliday
+            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-center gap-4 cursor-pointer ${day.isHoliday
               ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
               : isFutureDate(day.date)
                 ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'

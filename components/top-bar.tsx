@@ -54,14 +54,14 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
             <div className="hidden md:flex items-center bg-[#F3F4F6] rounded-xl p-1">
               <button
                 onClick={() => onPageChange("kaja")}
-                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === "kaja" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
+                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${currentPage === "kaja" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
                   }`}
               >
                 Kaja tábla
               </button>
               <button
                 onClick={() => onPageChange("stats")}
-                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === "stats" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
+                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${currentPage === "stats" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
                   }`}
               >
                 Statisztika
@@ -69,7 +69,7 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
               {isAdmin && (
                 <button
                   onClick={() => onPageChange("admin")}
-                  className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === "admin"
+                  className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${currentPage === "admin"
                     ? "bg-white text-[#1F2937] shadow-sm"
                     : "text-[#6B7280] hover:text-[#1F2937]"
                     }`}
@@ -82,7 +82,7 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
             {/* User Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <button className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
                   <span className="text-sm text-[#6B7280]">
                     Szia, <span className="hidden md:inline font-medium text-[#1F2937]">{firstName}</span>
                   </span>
@@ -116,14 +116,14 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
           <div className="flex items-center bg-[#F3F4F6] rounded-xl p-1">
             <button
               onClick={() => onPageChange("kaja")}
-              className={`px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${currentPage === "kaja" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280]"
+              className={`px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 cursor-pointer ${currentPage === "kaja" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280]"
                 }`}
             >
               Kaja
             </button>
             <button
               onClick={() => onPageChange("stats")}
-              className={`px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${currentPage === "stats" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280]"
+              className={`px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 cursor-pointer ${currentPage === "stats" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280]"
                 }`}
             >
               Statisztika
@@ -131,7 +131,7 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
             {isAdmin && (
               <button
                 onClick={() => onPageChange("admin")}
-                className={`px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${currentPage === "admin" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280]"
+                className={`px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 cursor-pointer ${currentPage === "admin" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280]"
                   }`}
               >
                 Admin

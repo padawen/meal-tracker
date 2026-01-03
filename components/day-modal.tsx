@@ -110,7 +110,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
           <h2 className="text-lg font-semibold text-[#1F2937]">Kaja rögzítése</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
+            className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center hover:bg-[#E5E7EB] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4 text-[#6B7280]" />
           </button>
@@ -130,7 +130,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setHadFood(true)}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 ${hadFood === true
+                className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === true
                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                   : "border-[#E5E7EB] hover:border-emerald-300 text-[#6B7280]"
                   }`}
@@ -140,7 +140,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               </button>
               <button
                 onClick={() => setHadFood(false)}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 ${hadFood === false
+                className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === false
                   ? "border-rose-500 bg-rose-50 text-rose-700"
                   : "border-[#E5E7EB] hover:border-rose-300 text-[#6B7280]"
                   }`}
@@ -174,7 +174,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
                           setDetails(suggestion)
                           setShowSuggestions(false)
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-[#F3F4F6] transition-colors border-b border-[#E5E7EB] last:border-0"
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-[#F3F4F6] transition-colors border-b border-[#E5E7EB] last:border-0 cursor-pointer"
                       >
                         {suggestion}
                       </button>
@@ -192,7 +192,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
                 {hadFood ? "Melyik csapattól kaptuk?" : "Melyik csapat dolgozik ezen a napon?"}
               </Label>
               <Select value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
-                <SelectTrigger className="w-full h-12 rounded-xl border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500">
+                <SelectTrigger className="w-full h-12 rounded-xl border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer">
                   <SelectValue placeholder="Válassz csapatot" />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,7 +224,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             <Button
               variant="outline"
               onClick={handleDelete}
-              className="w-full h-12 rounded-xl border-red-200 text-red-600 hover:bg-red-50 bg-transparent flex items-center justify-center gap-2"
+              className="w-full h-12 rounded-xl border-red-200 text-red-600 hover:bg-red-50 bg-transparent flex items-center justify-center gap-2 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
               Törlés
@@ -235,14 +235,14 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             <Button
               variant="outline"
               onClick={onClose}
-              className="flex-1 h-12 rounded-xl border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] bg-transparent"
+              className="flex-1 h-12 rounded-xl border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] bg-transparent cursor-pointer"
             >
               Mégse
             </Button>
             <Button
               onClick={handleSave}
               disabled={hadFood === null}
-              className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+              className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer"
             >
               Mentés
             </Button>

@@ -164,7 +164,7 @@ export function HolidaysManager() {
 
                     <Dialog open={open} onOpenChange={setOpen}>
                         <DialogTrigger asChild>
-                            <Button className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg h-10 px-4">
+                            <Button className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg h-10 px-4 cursor-pointer">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Új szünnap
                             </Button>
@@ -218,7 +218,7 @@ export function HolidaysManager() {
                                 </Button>
                                 <Button
                                     onClick={handleAdd}
-                                    className="flex-1 h-12 rounded-xl bg-purple-600 hover:bg-purple-700"
+                                    className="flex-1 h-12 rounded-xl bg-purple-600 hover:bg-purple-700 cursor-pointer"
                                 >
                                     Hozzáad
                                 </Button>
@@ -263,7 +263,7 @@ export function HolidaysManager() {
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => handleDelete(holiday.id, holiday.name)}
-                                    className="text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3"
+                                    className="text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </Button>

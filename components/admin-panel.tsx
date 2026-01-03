@@ -177,7 +177,7 @@ export function AdminPanel() {
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-1 shadow-sm inline-flex">
           <button
             onClick={() => setActiveTab("users")}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${activeTab === "users"
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer ${activeTab === "users"
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
@@ -187,7 +187,7 @@ export function AdminPanel() {
           </button>
           <button
             onClick={() => setActiveTab("holidays")}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${activeTab === "holidays"
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer ${activeTab === "holidays"
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
@@ -247,7 +247,7 @@ export function AdminPanel() {
                       <Button
                         size="sm"
                         onClick={() => handleApprove(user.id)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 px-3"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 px-3 cursor-pointer"
                       >
                         <Check className="w-4 h-4 mr-1" />
                         Engedélyez
@@ -256,7 +256,7 @@ export function AdminPanel() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleReject(user.id)}
-                        className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3"
+                        className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
                       >
                         <X className="w-4 h-4 mr-1" />
                         Elutasít
@@ -302,7 +302,7 @@ export function AdminPanel() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleReject(user.id)}
-                          className="text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3"
+                          className="text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
                         >
                           <X className="w-4 h-4 mr-1" />
                           Visszavon

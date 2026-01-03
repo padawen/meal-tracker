@@ -247,7 +247,7 @@ export function Statistics() {
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-1 shadow-sm grid grid-cols-2 sm:inline-flex gap-1 sm:gap-0 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab("general")}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "general"
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${activeTab === "general"
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
@@ -257,7 +257,7 @@ export function Statistics() {
           </button>
           <button
             onClick={() => setActiveTab("teams")}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "teams"
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${activeTab === "teams"
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
@@ -267,7 +267,7 @@ export function Statistics() {
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`col-span-2 sm:col-span-auto px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "history"
+            className={`col-span-2 sm:col-span-auto px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${activeTab === "history"
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-[#6B7280] hover:text-[#1F2937]"
               }`}

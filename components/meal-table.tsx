@@ -325,11 +325,19 @@ export function MealTable() {
   }
 
   const isToday = (date: Date) => {
-    return date.toDateString() === today.toDateString()
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+    const t = new Date()
+    t.setHours(0, 0, 0, 0)
+    return d.getTime() === t.getTime()
   }
 
   const isFutureDate = (date: Date) => {
-    return date > today
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+    const t = new Date()
+    t.setHours(0, 0, 0, 0)
+    return d.getTime() > t.getTime()
   }
 
   const handleDayClick = (day: DayData) => {

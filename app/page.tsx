@@ -26,7 +26,7 @@ export default function Home() {
     <AuthGuard>
       <div className="min-h-screen bg-[#F9FAFB]">
         <TopBar currentPage={currentPage} onPageChange={setCurrentPage} isAdmin={isAdmin} />
-        <main className="pt-32 md:pt-20 pb-8 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto">
+        <main className="pt-32 pb-8 px-4 max-w-lg mx-auto">
           {currentPage === "kaja" && <MealTable />}
           {currentPage === "stats" && <Statistics />}
           {currentPage === "admin" && isAdmin && <AdminPanel />}

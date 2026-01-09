@@ -64,6 +64,12 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
 
   useEffect(() => {
     if (hadFood && details) {
+      // Don't show suggestions if the current value exactly matches one of the suggestions (already saved data)
+      const exactMatch = foodSuggestions.some(s => s.toLowerCase() === details.toLowerCase())
+      if (exactMatch) {
+        setShowSuggestions(false)
+        return
+      }
       const filtered = foodSuggestions.filter((s) => s.toLowerCase().includes(details.toLowerCase()))
       setFilteredSuggestions(filtered)
       setShowSuggestions(filtered.length > 0 && details.length > 0)
@@ -99,9 +105,9 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl shadow-2xl animate-in slide-in-from-bottom duration-300">
+      <div className="relative w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
         {/* Handle - Mobile */}
-        <div className="flex md:hidden justify-center pt-3 pb-1">
+        <div className="flex md:hidden justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
           <div className="w-10 h-1 rounded-full bg-[#E5E7EB]" />
         </div>
 
@@ -157,24 +163,43 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               <Label htmlFor="details" className="text-sm font-medium text-[#1F2937]">
                 {hadFood ? "Mit ettünk?" : "Miért nem volt kaja?"}
               </Label>
-              <div className="relative">
+              <div className="relative isolate">
                 <Input
                   id="details"
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
+                  onFocus={() => {
+                    if (hadFood && details && filteredSuggestions.length > 0) {
+                      const exactMatch = foodSuggestions.some(s => s.toLowerCase() === details.toLowerCase())
+                      if (!exactMatch) setShowSuggestions(true)
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay to allow click on suggestion
+                    setTimeout(() => setShowSuggestions(false), 200)
+                  }}
                   placeholder={hadFood ? "Pl. Csirkepaprikás" : "Pl. Szabadnap"}
                   className="h-12 rounded-xl border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500"
                 />
                 {showSuggestions && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-xl shadow-lg z-10 overflow-hidden">
+                  <div
+                    className="absolute top-full left-0 right-0 mt-1 rounded-xl border-2 border-indigo-200 overflow-hidden"
+                    style={{
+                      zIndex: 9999,
+                      backgroundColor: 'white',
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+                    }}
+                  >
                     {filteredSuggestions.map((suggestion) => (
                       <button
                         key={suggestion}
-                        onClick={() => {
+                        onMouseDown={(e) => {
+                          e.preventDefault()
                           setDetails(suggestion)
                           setShowSuggestions(false)
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-[#F3F4F6] transition-colors border-b border-[#E5E7EB] last:border-0 cursor-pointer"
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
+                        style={{ backgroundColor: 'white' }}
                       >
                         {suggestion}
                       </button>
@@ -185,8 +210,8 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             </div>
           )}
 
-          {/* Team Selection */}
-          {hadFood !== null && (
+          {/* Team Selection - hidden when suggestions are visible */}
+          {hadFood !== null && !showSuggestions && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
               <Label htmlFor="team" className="text-sm font-medium text-[#1F2937]">
                 {hadFood ? "Melyik csapattól kaptuk?" : "Melyik csapat dolgozik ezen a napon?"}

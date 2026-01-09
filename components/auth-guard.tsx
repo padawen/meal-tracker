@@ -19,6 +19,25 @@ export function AuthGuard({ children }: AuthGuardProps) {
     useEffect(() => {
         const checkUser = async () => {
             try {
+                // Check sessionStorage cache first for faster loading
+                const cachedAuth = sessionStorage.getItem('auth_cache')
+                if (cachedAuth) {
+                    try {
+                        const cached = JSON.parse(cachedAuth)
+                        // Use cache if it's less than 5 minutes old
+                        if (cached.timestamp && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+                            if (cached.user) {
+                                setUser(cached.user)
+                                setIsApproved(cached.isApproved)
+                                setLoading(false)
+                                // Still verify in background but don't block
+                            }
+                        }
+                    } catch {
+                        sessionStorage.removeItem('auth_cache')
+                    }
+                }
+
                 // Create a timeout promise that rejects after 10 seconds
                 const timeoutPromise = new Promise((_, reject) => {
                     setTimeout(() => reject(new Error('Auth check timeout')), 10000)
@@ -34,7 +53,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
                 if (error) throw error
 
                 if (!session) {
-                    console.log('No session found in AuthGuard, redirecting to login')
+                    sessionStorage.removeItem('auth_cache')
                     setUser(null)
                     setLoading(false)
                     router.push('/login')
@@ -52,17 +71,21 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
                 if (profileError) {
                     console.error("Error fetching profile:", profileError)
-                    // Don't block strictly on profile error, but log it. 
-                    // Or act safe and assume not approved? 
-                    // Let's proceed but defaulting to false is safe.
                 }
 
                 // Admins are always approved
-                if (profile?.is_admin || profile?.is_approved) {
-                    setIsApproved(true)
-                }
+                const approved = !!(profile?.is_admin || profile?.is_approved)
+                setIsApproved(approved)
+
+                // Cache the auth state
+                sessionStorage.setItem('auth_cache', JSON.stringify({
+                    user: session.user,
+                    isApproved: approved,
+                    timestamp: Date.now()
+                }))
             } catch (err) {
                 console.error("Unexpected error in checkUser:", err)
+                sessionStorage.removeItem('auth_cache')
                 // Don't await signOut, as it might hang if network is down
                 supabase.auth.signOut()
                 setUser(null)
@@ -78,7 +101,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             try {
                 if (event === 'SIGNED_OUT' || !session) {
-                    console.log('Session ended or user signed out in AuthGuard, redirecting to login')
+                    sessionStorage.removeItem('auth_cache')
                     setUser(null)
                     setLoading(false)
                     router.push('/login')
@@ -92,11 +115,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
                         .eq('id', session.user.id)
                         .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
 
-                    if (profile?.is_admin || profile?.is_approved) {
-                        setIsApproved(true)
-                    } else {
-                        setIsApproved(false)
-                    }
+                    const approved = !!(profile?.is_admin || profile?.is_approved)
+                    setIsApproved(approved)
+
+                    // Update cache
+                    sessionStorage.setItem('auth_cache', JSON.stringify({
+                        user: session.user,
+                        isApproved: approved,
+                        timestamp: Date.now()
+                    }))
 
                     setLoading(false)
                 }
@@ -117,11 +144,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     // Separate useEffect for realtime subscription - runs when user changes
     useEffect(() => {
         if (!user?.id) {
-            console.log('No user ID, skipping realtime subscription')
             return
         }
-
-        console.log('Setting up realtime subscription for user:', user.id)
 
         // Listen for profile changes (realtime)
         const profileSubscription = supabase
@@ -134,8 +158,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
                     table: 'profiles',
                     filter: `id=eq.${user.id}`
                 },
-                async (payload) => {
-                    console.log('🔥 Profile updated via realtime:', payload)
+                async () => {
                     // Refresh approval status
                     const { data: profile } = await supabase
                         .from('profiles')
@@ -143,23 +166,20 @@ export function AuthGuard({ children }: AuthGuardProps) {
                         .eq('id', user.id)
                         .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
 
-                    console.log('Refreshed profile data:', profile)
+                    const approved = !!(profile?.is_admin || profile?.is_approved)
+                    setIsApproved(approved)
 
-                    if (profile?.is_admin || profile?.is_approved) {
-                        console.log('✅ User is now approved!')
-                        setIsApproved(true)
-                    } else {
-                        console.log('❌ User is not approved')
-                        setIsApproved(false)
-                    }
+                    // Update cache
+                    sessionStorage.setItem('auth_cache', JSON.stringify({
+                        user,
+                        isApproved: approved,
+                        timestamp: Date.now()
+                    }))
                 }
             )
-            .subscribe((status) => {
-                console.log('Realtime subscription status:', status)
-            })
+            .subscribe()
 
         return () => {
-            console.log('Unsubscribing from realtime for user:', user.id)
             profileSubscription.unsubscribe()
         }
     }, [user])

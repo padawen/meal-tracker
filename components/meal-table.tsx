@@ -428,7 +428,7 @@ export function MealTable() {
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${view === "week" ? "bg-white text-[#1F2937] shadow-sm" : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
           >
-            Heti nézet
+            5 napos nézet
           </button>
           <button
             onClick={() => setView("month")}
@@ -440,46 +440,8 @@ export function MealTable() {
         </div>
       </div>
 
-      {/* Calendar Grid - Desktop */}
-      <div className="hidden md:grid grid-cols-7 gap-3">
-        {displayDays.map((day, index) => (
-          <button
-            key={index}
-            onClick={() => handleDayClick(day)}
-            disabled={isFutureDate(day.date) || day.isHoliday}
-            className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left cursor-pointer ${day.isHoliday
-              ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
-              : isFutureDate(day.date)
-                ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
-                : getStatusStyles(day.status)
-              } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              {getStatusIcon(day.status)}
-              {isToday(day.date) && (
-                <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Ma</span>
-              )}
-              {day.isHoliday && (
-                <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">Szünnap</span>
-              )}
-            </div>
-            <p className="text-sm font-semibold text-[#1F2937] mb-1">{formatDate(day.date)}</p>
-            {day.isHoliday && (
-              <p className="text-xs text-purple-600 font-medium truncate">
-                {day.holidayName}
-              </p>
-            )}
-            {day.recordedBy && !day.isHoliday && (
-              <p className="text-xs text-[#6B7280] truncate">
-                {day.recordedBy} · {day.recordedAt}
-              </p>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Calendar List - Mobile */}
-      <div className="md:hidden space-y-3">
+      {/* Calendar List */}
+      <div className="space-y-3">
         {displayDays.map((day, index) => (
           <button
             key={index}

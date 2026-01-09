@@ -51,7 +51,7 @@ export function AdminPanel() {
 
   const handleApprove = async (userId: string) => {
     try {
-      console.log('Approving user:', userId)
+
 
       const { data, error } = await supabase
         .from('profiles')
@@ -59,7 +59,7 @@ export function AdminPanel() {
         .eq('id', userId)
         .select()
 
-      console.log('Approve result:', { data, error })
+
 
       if (error) throw error
 
@@ -80,7 +80,7 @@ export function AdminPanel() {
 
   const handleReject = async (userId: string) => {
     try {
-      console.log('Rejecting user:', userId)
+
 
       const { data, error } = await supabase
         .from('profiles')
@@ -88,7 +88,7 @@ export function AdminPanel() {
         .eq('id', userId)
         .select()
 
-      console.log('Reject result:', { data, error })
+
 
       if (error) throw error
 
@@ -227,40 +227,82 @@ export function AdminPanel() {
               </div>
               <div className="divide-y divide-[#E5E7EB]">
                 {pendingUsers.map((user) => (
-                  <div key={user.id} className="p-4 flex items-center gap-4">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={user.avatar_url || undefined} />
-                      <AvatarFallback className="bg-amber-100 text-amber-700 text-sm font-medium">
-                        {getInitials(user.full_name, user.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[#1F2937] truncate">
-                        {user.full_name || user.email.split('@')[0]}
-                      </p>
-                      <p className="text-sm text-[#6B7280] truncate flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
+                  <div key={user.id} className="p-4">
+                    {/* Desktop layout */}
+                    <div className="hidden sm:flex items-center gap-4">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={user.avatar_url || undefined} />
+                        <AvatarFallback className="bg-amber-100 text-amber-700 text-sm font-medium">
+                          {getInitials(user.full_name, user.email)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[#1F2937] truncate">
+                          {user.full_name || user.email.split('@')[0]}
+                        </p>
+                        <p className="text-sm text-[#6B7280] truncate flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          {user.email}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(user.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 px-3 cursor-pointer"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Engedélyez
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(user.id)}
+                          className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Elutasít
+                        </Button>
+                      </div>
+                    </div>
+                    {/* Mobile layout */}
+                    <div className="sm:hidden space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={user.avatar_url || undefined} />
+                          <AvatarFallback className="bg-amber-100 text-amber-700 text-sm font-medium">
+                            {getInitials(user.full_name, user.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-[#1F2937]">
+                            {user.full_name || user.email.split('@')[0]}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-[#6B7280] flex items-center gap-1 break-all">
+                        <Mail className="w-3 h-3 flex-shrink-0" />
                         {user.email}
                       </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleApprove(user.id)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 px-3 cursor-pointer"
-                      >
-                        <Check className="w-4 h-4 mr-1" />
-                        Engedélyez
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReject(user.id)}
-                        className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        Elutasít
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(user.id)}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 cursor-pointer"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Engedélyez
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(user.id)}
+                          className="flex-1 border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 cursor-pointer"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Elutasít
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -279,30 +321,65 @@ export function AdminPanel() {
             {approvedUsers.length > 0 ? (
               <div className="divide-y divide-[#E5E7EB]">
                 {approvedUsers.map((user) => (
-                  <div key={user.id} className="p-4 flex items-center gap-4">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={user.avatar_url || undefined} />
-                      <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-medium">
-                        {getInitials(user.full_name, user.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[#1F2937] truncate">
-                        {user.full_name || user.email.split('@')[0]}
-                      </p>
-                      <p className="text-sm text-[#6B7280] truncate flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
+                  <div key={user.id} className="p-4">
+                    {/* Desktop layout */}
+                    <div className="hidden sm:flex items-center gap-4">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={user.avatar_url || undefined} />
+                        <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-medium">
+                          {getInitials(user.full_name, user.email)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[#1F2937] truncate">
+                          {user.full_name || user.email.split('@')[0]}
+                        </p>
+                        <p className="text-sm text-[#6B7280] truncate flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          {user.email}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(user)}
+                        {!user.is_admin && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReject(user.id)}
+                            className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Visszavon
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Mobile layout */}
+                    <div className="sm:hidden space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={user.avatar_url || undefined} />
+                          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-medium">
+                            {getInitials(user.full_name, user.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-[#1F2937]">
+                            {user.full_name || user.email.split('@')[0]}
+                          </p>
+                          {getStatusBadge(user)}
+                        </div>
+                      </div>
+                      <p className="text-sm text-[#6B7280] flex items-center gap-1 break-all">
+                        <Mail className="w-3 h-3 flex-shrink-0" />
                         {user.email}
                       </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(user)}
                       {!user.is_admin && (
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
                           onClick={() => handleReject(user.id)}
-                          className="text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
+                          className="w-full border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 cursor-pointer"
                         >
                           <X className="w-4 h-4 mr-1" />
                           Visszavon

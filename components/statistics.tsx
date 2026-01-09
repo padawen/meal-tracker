@@ -433,13 +433,15 @@ export function Statistics() {
               <Users className="w-5 h-5 text-indigo-600" />
               Heti összesítő
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <GeneralSummaryCard
-                hadMeal={generalWeekly.had_meal}
-                noMeal={generalWeekly.no_meal}
-                totalDays={generalWeekly.total_days}
-                period="weekly"
-              />
+            <div className="flex justify-center">
+              <div className="w-full max-w-md">
+                <GeneralSummaryCard
+                  hadMeal={generalWeekly.had_meal}
+                  noMeal={generalWeekly.no_meal}
+                  totalDays={generalWeekly.total_days}
+                  period="weekly"
+                />
+              </div>
             </div>
           </div>
 
@@ -449,13 +451,15 @@ export function Statistics() {
               <Users className="w-5 h-5 text-indigo-600" />
               Havi összesítő
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <GeneralSummaryCard
-                hadMeal={generalMonthly.had_meal}
-                noMeal={generalMonthly.no_meal}
-                totalDays={generalMonthly.total_days}
-                period="monthly"
-              />
+            <div className="flex justify-center">
+              <div className="w-full max-w-md">
+                <GeneralSummaryCard
+                  hadMeal={generalMonthly.had_meal}
+                  noMeal={generalMonthly.no_meal}
+                  totalDays={generalMonthly.total_days}
+                  period="monthly"
+                />
+              </div>
             </div>
           </div>
 
@@ -465,13 +469,15 @@ export function Statistics() {
               <Users className="w-5 h-5 text-indigo-600" />
               Éves összesítő
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <GeneralSummaryCard
-                hadMeal={generalYearly.had_meal}
-                noMeal={generalYearly.no_meal}
-                totalDays={generalYearly.total_days}
-                period="yearly"
-              />
+            <div className="flex justify-center">
+              <div className="w-full max-w-md">
+                <GeneralSummaryCard
+                  hadMeal={generalYearly.had_meal}
+                  noMeal={generalYearly.no_meal}
+                  totalDays={generalYearly.total_days}
+                  period="yearly"
+                />
+              </div>
             </div>
           </div>
         </>

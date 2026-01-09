@@ -101,22 +101,8 @@ export default function LoginPage() {
                             {loading ? 'Bejelentkezés...' : 'Bejelentkezés Google-lal'}
                         </Button>
 
-                        <div className="pt-4 text-center">
-                            <p className="text-xs text-muted-foreground">
-                                A bejelentkezéssel elfogadod az{' '}
-                                <a href="#" className="underline hover:text-primary transition-colors">
-                                    Általános Szerződési Feltételeket
-                                </a>
-                            </p>
-                        </div>
                     </CardContent>
                 </Card>
-
-                <div className="mt-6 text-center">
-                    <p className="text-sm text-muted-foreground">
-                        © 2025 Személyzeti. Minden jog fenntartva.
-                    </p>
-                </div>
             </div>
         </div>
     )

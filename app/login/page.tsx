@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function LoginPage() {
+    const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [modalLoading, setModalLoading] = useState(false)
     const [loginError, setLoginError] = useState<string | null>(null)
@@ -67,7 +69,7 @@ export default function LoginPage() {
             }
 
             setOpen(false)
-            window.location.href = '/'
+            router.push('/')
         } catch (err) {
             setModalError('Hiba történt a bejelentkezés során')
             setModalLoading(false)

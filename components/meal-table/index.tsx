@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { CheckCircle2, Calendar, AlertCircle, ArrowLeft } from "lucide-react"
 import { DayModal } from "./DayModal"
 import { ConfettiEffect } from "./ConfettiEffect"
@@ -18,6 +19,7 @@ export function MealTable() {
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
     const [showConfetti, setShowConfetti] = useState(false)
     const { user } = useAuth()
+    const router = useRouter()
     const { toast } = useToast()
 
     const {
@@ -172,8 +174,18 @@ export function MealTable() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                <p className="text-sm text-gray-500 animate-pulse">Adatok betöltése...</p>
+                <button 
+                  onClick={() => {
+                    sessionStorage.removeItem('auth_checked');
+                    router.refresh();
+                  }}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 underline cursor-pointer"
+                >
+                  Túl sokáig tart? Frissítés
+                </button>
             </div>
         )
     }

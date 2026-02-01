@@ -92,12 +92,45 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
 export function useAuth() {
     const [user, setUser] = useState<User | null>(null)
+    const router = useRouter()
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null))
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setUser(s?.user ?? null))
-        return () => subscription.unsubscribe()
+        let isMounted = true;
+        
+        const fetchSession = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (isMounted) setUser(session?.user ?? null);
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                if (isMounted) setUser(null);
+            }
+        };
+
+        fetchSession();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
+            if (isMounted) setUser(s?.user ?? null);
+        });
+
+        return () => {
+            isMounted = false;
+            subscription.unsubscribe();
+        };
     }, [])
 
-    return { user, signOut: () => supabase.auth.signOut() }
+    const signOut = async () => {
+        try {
+            sessionStorage.removeItem('auth_checked');
+            await supabase.auth.signOut();
+            router.push('/login');
+        } catch (err) {
+            console.error('Sign out error:', err);
+            // Fallback clear
+            sessionStorage.clear();
+            router.push('/login');
+        }
+    };
+
+    return { user, signOut }
 }

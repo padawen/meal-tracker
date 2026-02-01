@@ -146,41 +146,50 @@ export function useMealData(): UseMealDataReturn {
         return daysArray
     }, [])
 
-    // Initial data load with timeout
+    // Initial data load with aggressive timeout and stale session handling
     useEffect(() => {
-        let timeoutId: NodeJS.Timeout
+        let isMounted = true;
+        let timeoutId: NodeJS.Timeout;
 
         const fetchInitialRecords = async () => {
+            // Aggressive timeout: if no data in 3s, remove spinner anyway
+            timeoutId = setTimeout(() => {
+                if (isMounted) {
+                    console.warn('Initial fetch timeout - showing UI anyway');
+                    setLoading(false);
+                }
+            }, 3000);
+
             try {
-                // Timeout after 10 seconds
-                timeoutId = setTimeout(() => {
-                    console.warn('Fetch timeout - setting loading to false')
-                    setLoading(false)
-                }, 10000)
+                // Check if we even have a user session
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    if (isMounted) setLoading(false);
+                    return;
+                }
 
-                const startDate = new Date(2026, 0, 1) // Always start from Jan 2026
-                const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0)
+                const startDate = new Date(2026, 0, 1);
+                const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0);
                 
-                const daysArray = await fetchDateRange(startDate, endDate)
-                setAllRecords(daysArray)
-                loadedRangeRef.current = { start: startDate, end: endDate }
+                const daysArray = await fetchDateRange(startDate, endDate);
+                
+                if (isMounted) {
+                    setAllRecords(daysArray);
+                    loadedRangeRef.current = { start: startDate, end: endDate };
+                }
             } catch (error) {
-                console.error('Error fetching meal records:', error)
-                toast({
-                    title: "Hiba",
-                    description: "Nem sikerült betölteni az étkezési adatokat",
-                    variant: "destructive"
-                })
+                console.error('Critical fetch error:', error);
             } finally {
-                clearTimeout(timeoutId)
-                setLoading(false)
+                if (isMounted) {
+                    clearTimeout(timeoutId);
+                    setLoading(false);
+                }
             }
-        }
+        };
 
-        fetchInitialRecords()
-
-        return () => clearTimeout(timeoutId)
-    }, [])
+        fetchInitialRecords();
+        return () => { isMounted = false; clearTimeout(timeoutId); };
+    }, []);
 
     // Check if we need to load more data when navigating
     useEffect(() => {

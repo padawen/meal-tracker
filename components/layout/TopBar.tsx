@@ -1,6 +1,7 @@
 "use client"
 
 import { UtensilsCrossed, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/auth/AuthGuard"
 import {
@@ -20,6 +21,7 @@ interface TopBarProps {
 
 export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
   const { user, signOut } = useAuth()
+  const router = useRouter()
 
   const pageTitle = {
     kaja: "Kaja tábla",
@@ -36,7 +38,13 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
       <div className="max-w-lg mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo + App Name */}
-          <div className="flex items-center gap-3">
+          <div 
+            className="flex items-center gap-3 cursor-pointer select-none"
+            onClick={() => {
+              sessionStorage.removeItem('auth_checked');
+              router.push('/');
+            }}
+          >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-sm">
               <UtensilsCrossed className="w-4 h-4 text-white" />
             </div>

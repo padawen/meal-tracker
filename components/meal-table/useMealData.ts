@@ -177,18 +177,20 @@ export function useMealData(): UseMealDataReturn {
             if (!loadedRangeRef.current || loadingRangeRef.current) return
 
             // Calculate required date range based on current view
+            // Always require +3 months ahead of viewed date
             let requiredStart: Date
             let requiredEnd: Date
 
             if (monthOffset !== 0) {
                 const targetMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
-                requiredStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1)
-                requiredEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0)
+                // Load -3 months before and +3 months after viewed month
+                requiredStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 3, 1)
+                requiredEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 4, 0)
             } else {
                 const weekStart = getWeekStart(weekOffset)
-                requiredStart = new Date(weekStart)
-                requiredEnd = new Date(weekStart)
-                requiredEnd.setDate(requiredEnd.getDate() + 6)
+                // Load -3 months before and +3 months after viewed week
+                requiredStart = new Date(weekStart.getFullYear(), weekStart.getMonth() - 3, 1)
+                requiredEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 4, 0)
             }
 
             // Ensure we don't go before 2026
@@ -207,7 +209,7 @@ export function useMealData(): UseMealDataReturn {
                         ? new Date(requiredStart.getFullYear(), requiredStart.getMonth() - 1, 1)
                         : loadedStart
                     const newEnd = requiredEnd > loadedEnd
-                        ? new Date(requiredEnd.getFullYear(), requiredEnd.getMonth() + 2, 0)
+                        ? new Date(requiredEnd.getFullYear(), requiredEnd.getMonth() + 1, 0)
                         : loadedEnd
 
                     // Ensure minimum date

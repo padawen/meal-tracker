@@ -1,6 +1,6 @@
 "use client"
 
-import { UtensilsCrossed, Check, LogOut } from "lucide-react"
+import { UtensilsCrossed, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/auth/AuthGuard"
 import {
@@ -38,10 +38,7 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
           {/* Logo + App Name */}
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-sm">
-              <div className="relative">
-                <UtensilsCrossed className="w-4 h-4 text-white" />
-                <Check className="w-2.5 h-2.5 text-white absolute -bottom-0.5 -right-1 stroke-[3]" />
-              </div>
+              <UtensilsCrossed className="w-4 h-4 text-white" />
             </div>
             <span className="font-semibold text-[#1F2937]">Személyzeti</span>
           </div>

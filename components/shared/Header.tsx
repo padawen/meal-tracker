@@ -1,4 +1,4 @@
-import { Calendar } from "lucide-react"
+import { UtensilsCrossed } from "lucide-react"
 import { ReactNode } from "react"
 
 interface HeaderProps {
@@ -15,10 +15,10 @@ export function Header({
     iconBgColor = "bg-indigo-100"
 }: HeaderProps) {
     return (
-        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-6 shadow-sm">
+        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 shadow-sm">
             <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl ${iconBgColor} flex items-center justify-center shrink-0`}>
-                    {icon || <Calendar className="w-6 h-6 text-indigo-600" />}
+                <div className={`w-10 h-10 rounded-xl ${iconBgColor} flex items-center justify-center shrink-0`}>
+                    {icon || <UtensilsCrossed className="w-5 h-5 text-indigo-600" />}
                 </div>
                 <div>
                     <h2 className="font-semibold text-[#1F2937] mb-1">{title}</h2>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle2, Calendar, AlertCircle } from "lucide-react"
+import { CheckCircle2, Calendar, AlertCircle, ArrowLeft } from "lucide-react"
 import { DayModal } from "./DayModal"
 import { ConfettiEffect } from "./ConfettiEffect"
 import { supabase } from "@/lib/supabase"
@@ -134,13 +134,23 @@ export function MealTable() {
             const weekStart = getWeekStart(weekOffset)
             const weekEnd = new Date(weekStart)
             weekEnd.setDate(weekStart.getDate() + 6)
-            const startMonth = weekStart.toLocaleDateString("hu-HU", { month: "short" }).replace('.', '')
+            
+            // Clamp to 2026 start - don't show dates before 2026
+            const minDate = new Date(2026, 0, 1)
+            const actualStart = weekStart < minDate ? minDate : weekStart
+            
+            const startMonth = actualStart.toLocaleDateString("hu-HU", { month: "short" }).replace('.', '')
             const endMonth = weekEnd.toLocaleDateString("hu-HU", { month: "short" }).replace('.', '')
-            const year = weekStart.getFullYear()
-            if (weekStart.getMonth() === weekEnd.getMonth()) {
-                return `${year}. ${startMonth} ${weekStart.getDate()}–${weekEnd.getDate()}`
+            const startYear = actualStart.getFullYear()
+            const endYear = weekEnd.getFullYear()
+            
+            if (startYear !== endYear) {
+                return `${startYear}. ${startMonth} ${actualStart.getDate()} – ${endYear}. ${endMonth} ${weekEnd.getDate()}`
             }
-            return `${year}. ${startMonth} ${weekStart.getDate()} – ${endMonth} ${weekEnd.getDate()}`
+            if (actualStart.getMonth() === weekEnd.getMonth()) {
+                return `${startYear}. ${startMonth} ${actualStart.getDate()}–${weekEnd.getDate()}`
+            }
+            return `${startYear}. ${startMonth} ${actualStart.getDate()} – ${endMonth} ${weekEnd.getDate()}`
         }
         const targetDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
         return targetDate.toLocaleDateString("hu-HU", { year: "numeric", month: "long" })
@@ -208,23 +218,6 @@ export function MealTable() {
             <ViewToggle view={view} onViewChange={handleViewChange} />
 
 
-            {/* Far date navigation indicator */}
-            {(view === "month" && Math.abs(monthOffset) > 1) || (view === "week" && Math.abs(weekOffset) > 4) ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                    <p className="text-sm text-amber-800">
-                        <span className="font-medium">Figyelem:</span> Távoli dátumot nézel.{' '}
-                        <button 
-                            onClick={() => {
-                                setWeekOffset(0)
-                                setMonthOffset(0)
-                            }}
-                            className="underline hover:text-amber-900 font-medium"
-                        >
-                            Vissza a jelenlegi időszakra
-                        </button>
-                    </p>
-                </div>
-            ) : null}
             <Nav
                 label={getPeriodLabel()}
                 onPrev={navigateBack}
@@ -232,6 +225,22 @@ export function MealTable() {
                 canPrev={canNavigateBack(view)}
                 canNext={true}
             />
+
+            {/* Far date - show "Mai nap" button */}
+            {((view === "month" && monthOffset !== 0) || (view === "week" && weekOffset !== 0)) && (
+                <button 
+                    onClick={() => {
+                        setWeekOffset(0)
+                        setMonthOffset(0)
+                    }}
+                    className="group flex items-center justify-center gap-2 w-full bg-white/80 backdrop-blur-sm border border-indigo-100 hover:border-indigo-300 rounded-xl py-2.5 px-4  shadow-sm hover:shadow-lg cursor-pointer"
+                >
+                    <div className="w-6 h-6 rounded-full bg-indigo-100 group-hover:bg-indigo-500 flex items-center justify-center ">
+                        <ArrowLeft className="w-3.5 h-3.5 text-indigo-600 group-hover:text-white " />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-600 ">Vissza a mai napra</span>
+                </button>
+            )}
 
             <div className="space-y-3">
                 {displayDays.map((day, index) => (

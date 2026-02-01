@@ -17,7 +17,7 @@ export function Header({
     return (
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-6 shadow-sm">
             <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl ${iconBgColor} flex items-center justify-center`}>
+                <div className={`w-12 h-12 rounded-2xl ${iconBgColor} flex items-center justify-center shrink-0`}>
                     {icon || <Calendar className="w-6 h-6 text-indigo-600" />}
                 </div>
                 <div>

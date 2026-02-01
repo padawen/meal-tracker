@@ -63,6 +63,17 @@ export function HistoryTab({ historyYear, setHistoryYear, historyYears, rawRecor
             const totalHad = monthRecs.filter(r => r.had_meal).length
             const totalNo = monthRecs.filter(r => !r.had_meal).length
 
+            // Calculate elapsed days in this month
+            let elapsedDaysInMonth = 0
+            const monthEndDate = monthEnd < today ? monthEnd : today
+            if (monthStart <= today) {
+                let countDate = new Date(monthStart)
+                while (countDate <= monthEndDate && countDate <= monthEnd) {
+                    elapsedDaysInMonth++
+                    countDate.setDate(countDate.getDate() + 1)
+                }
+            }
+
             // Only include month if it has any data (records or holidays)
             // OR if it's a month that has "unfilled" days (meaning it's in the past/present)
             // Actually, user asked: "csak azokat a honapokat mutasd ahol mar van felvive adat (kaja vagy unnepnap)"
@@ -87,7 +98,8 @@ export function HistoryTab({ historyYear, setHistoryYear, historyYears, rawRecor
                         unfilled: unfilledCount,
                         holidays: visibleHolidays
                     },
-                    daysInMonth: monthEnd.getDate()
+                    daysInMonth: monthEnd.getDate(),
+                    elapsedDays: elapsedDaysInMonth
                 })
             }
         }
@@ -146,7 +158,7 @@ export function HistoryTab({ historyYear, setHistoryYear, historyYears, rawRecor
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between pt-2 border-t border-gray-200 flex-wrap gap-y-2">
-                                    <span className="text-xs font-medium text-gray-500">Összesen ({stat.daysInMonth} nap)</span>
+                                    <span className="text-xs font-medium text-gray-500">Összesen ({stat.elapsedDays}/{stat.daysInMonth} nap)</span>
                                     <div className="flex items-center gap-3 flex-wrap justify-end">
                                         <div className="flex items-center gap-1.5">
                                             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>

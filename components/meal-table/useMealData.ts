@@ -23,7 +23,14 @@ interface UseMealDataReturn {
 }
 
 export function useMealData(): UseMealDataReturn {
-    const [loading, setLoading] = useState(true)
+    // Initialize loading from localStorage if available, otherwise true
+    const [loading, setLoading] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem('meal_data_loaded')
+            return cached !== 'true'
+        }
+        return true
+    })
     const [allRecords, setAllRecords] = useState<DayData[]>([])
     const [weekOffset, setWeekOffset] = useState(0)
     const [monthOffset, setMonthOffset] = useState(0)
@@ -48,14 +55,34 @@ export function useMealData(): UseMealDataReturn {
     }
 
     const canNavigateBack = (view: "week" | "month") => {
-        const year2026Start = new Date('2026-01-01')
+        const year2026Start = new Date(2026, 0, 1) // January 1, 2026
+        year2026Start.setHours(0, 0, 0, 0)
+        
         if (view === "week") {
             const weekStart = getWeekStart(weekOffset - 1)
             const weekEnd = new Date(weekStart)
             weekEnd.setDate(weekEnd.getDate() + 6)
             return weekEnd >= year2026Start
         } else {
-            const targetDate = new Date(today.getFullYear(), today.getMonth() + monthOffset - 1, 1)
+            // For month view, calculate what month we would navigate to
+            const currentYear = today.getFullYear()
+            const currentMonth = today.getMonth()
+            const targetMonth = currentMonth + monthOffset - 1
+            
+            // Calculate the actual year and month after offset
+            const targetDate = new Date(currentYear, targetMonth, 1)
+            targetDate.setHours(0, 0, 0, 0)
+            
+            console.log('canNavigateBack check:', {
+                currentYear,
+                currentMonth,
+                monthOffset,
+                targetMonth,
+                targetDate: targetDate.toISOString(),
+                year2026Start: year2026Start.toISOString(),
+                canGo: targetDate >= year2026Start
+            })
+            
             return targetDate >= year2026Start
         }
     }
@@ -145,6 +172,10 @@ export function useMealData(): UseMealDataReturn {
                 }
 
                 setAllRecords(daysArray)
+                // Mark data as loaded in localStorage
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('meal_data_loaded', 'true')
+                }
             } catch (error) {
                 console.error('Error fetching meal records:', error)
                 toast({
@@ -158,42 +189,21 @@ export function useMealData(): UseMealDataReturn {
         }
 
         fetchAllRecords()
-    }, [])
 
-    const currentWeekDays = useMemo(() => {
-        const weekStart = getWeekStart(weekOffset)
-        const weekDays: DayData[] = []
-        for (let i = 0; i < 7; i++) {
-            const targetDate = new Date(weekStart)
-            targetDate.setDate(weekStart.getDate() + i)
-            const found = allRecords.find(d => d.date.toDateString() === targetDate.toDateString())
-            if (found) weekDays.push(found)
+        // Handle page visibility changes - reset loading state when page becomes visible
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && loading) {
+                // If we were loading and page becomes visible, check localStorage
+                const cached = localStorage.getItem('meal_data_loaded')
+                if (cached === 'true') {
+                    setLoading(false)
+                }
+            }
         }
-        return weekDays
-    }, [allRecords, weekOffset])
 
-    const currentMonthDays = useMemo(() => {
-        const targetDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
-        return allRecords.filter(day =>
-            day.date.getMonth() === targetDate.getMonth() &&
-            day.date.getFullYear() === targetDate.getFullYear()
-        )
-    }, [allRecords, monthOffset])
-
-    const currentActualWeekStart = getWeekStart(0)
-    const currentActualWeekDays = allRecords.filter(day => {
-        const dayTime = day.date.getTime()
-        const weekStartTime = currentActualWeekStart.getTime()
-        const weekEndTime = weekStartTime + (7 * 24 * 60 * 60 * 1000)
-        return dayTime >= weekStartTime && dayTime < weekEndTime
-    })
-
-    const currentActualMonthDays = allRecords.filter(day =>
-        day.date.getMonth() === today.getMonth() &&
-        day.date.getFullYear() === today.getFullYear()
-    )
-
-    const weekStats = useMemo(() => calculatePeriodStats(currentActualWeekDays, today), [currentActualWeekDays])
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [])
     const monthStats = useMemo(() => calculatePeriodStats(currentActualMonthDays, today), [currentActualMonthDays])
 
     const totalEmptyDays = allRecords.filter((d) =>

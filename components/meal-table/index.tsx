@@ -207,6 +207,24 @@ export function MealTable() {
 
             <ViewToggle view={view} onViewChange={handleViewChange} />
 
+
+            {/* Far date navigation indicator */}
+            {(view === "month" && Math.abs(monthOffset) > 1) || (view === "week" && Math.abs(weekOffset) > 4) ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                    <p className="text-sm text-amber-800">
+                        <span className="font-medium">Figyelem:</span> Távoli dátumot nézel.{' '}
+                        <button 
+                            onClick={() => {
+                                setWeekOffset(0)
+                                setMonthOffset(0)
+                            }}
+                            className="underline hover:text-amber-900 font-medium"
+                        >
+                            Vissza a jelenlegi időszakra
+                        </button>
+                    </p>
+                </div>
+            ) : null}
             <Nav
                 label={getPeriodLabel()}
                 onPrev={navigateBack}

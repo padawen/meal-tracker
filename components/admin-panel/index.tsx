@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Shield, Check, X, Clock, Mail, User, Loader2, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { HolidaysManager } from "@/components/holidays-manager"
+import { HolidaysManager } from "./HolidaysManager"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
@@ -228,45 +228,8 @@ export function AdminPanel() {
               <div className="divide-y divide-[#E5E7EB]">
                 {pendingUsers.map((user) => (
                   <div key={user.id} className="p-4">
-                    {/* Desktop layout */}
-                    <div className="hidden sm:flex items-center gap-4">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={user.avatar_url || undefined} />
-                        <AvatarFallback className="bg-amber-100 text-amber-700 text-sm font-medium">
-                          {getInitials(user.full_name, user.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[#1F2937] truncate">
-                          {user.full_name || user.email.split('@')[0]}
-                        </p>
-                        <p className="text-sm text-[#6B7280] truncate flex items-center gap-1">
-                          <Mail className="w-3 h-3" />
-                          {user.email}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(user.id)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 px-3 cursor-pointer"
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          Engedélyez
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleReject(user.id)}
-                          className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          Elutasít
-                        </Button>
-                      </div>
-                    </div>
-                    {/* Mobile layout */}
-                    <div className="sm:hidden space-y-3">
+                    {/* Unified Mobile-style layout */}
+                    <div className="space-y-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
                           <AvatarImage src={user.avatar_url || undefined} />
@@ -322,40 +285,8 @@ export function AdminPanel() {
               <div className="divide-y divide-[#E5E7EB]">
                 {approvedUsers.map((user) => (
                   <div key={user.id} className="p-4">
-                    {/* Desktop layout */}
-                    <div className="hidden sm:flex items-center gap-4">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={user.avatar_url || undefined} />
-                        <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-medium">
-                          {getInitials(user.full_name, user.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[#1F2937] truncate">
-                          {user.full_name || user.email.split('@')[0]}
-                        </p>
-                        <p className="text-sm text-[#6B7280] truncate flex items-center gap-1">
-                          <Mail className="w-3 h-3" />
-                          {user.email}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(user)}
-                        {!user.is_admin && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleReject(user.id)}
-                            className="border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            Visszavon
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    {/* Mobile layout */}
-                    <div className="sm:hidden space-y-3">
+                    {/* Unified Mobile-style layout */}
+                    <div className="space-y-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
                           <AvatarImage src={user.avatar_url || undefined} />

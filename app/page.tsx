@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { TopBar } from "@/components/top-bar"
+import { TopBar } from "@/components/layout/TopBar"
 import { MealTable } from "@/components/meal-table"
 import { Statistics } from "@/components/statistics"
 import { AdminPanel } from "@/components/admin-panel"
-import { AuthGuard } from "@/components/auth-guard"
+import { AuthGuard } from "@/components/auth/AuthGuard"
 import { useIsAdmin } from "@/hooks/use-is-admin"
 
 export default function Home() {

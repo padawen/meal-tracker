@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/components/auth-guard'
+import { useAuth } from '@/components/auth/AuthGuard'
 
 export function useIsAdmin() {
     const { user } = useAuth()

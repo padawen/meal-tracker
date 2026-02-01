@@ -2,7 +2,7 @@
 
 import { UtensilsCrossed, Check, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth } from "@/components/auth-guard"
+import { useAuth } from "@/components/auth/AuthGuard"
 import {
   DropdownMenu,
   DropdownMenuContent,

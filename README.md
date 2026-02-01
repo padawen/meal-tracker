@@ -15,8 +15,6 @@ Modern étkezés-nyilvántartó alkalmazás Next.js, Tailwind CSS és Supabase t
 - **Frontend**: Next.js 16 (App Router), React 19, Lucide React, Shadcn/UI
 - **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
 - **Stílus**: Tailwind CSS 4
-- **Deploy**: Docker / Render / Vercel
-
 ## Telepítés és Futtatás
 
 ### Helyi fejlesztés
@@ -30,13 +28,6 @@ Modern étkezés-nyilvántartó alkalmazás Next.js, Tailwind CSS és Supabase t
    ```bash
    npm run dev
    ```
-
-### Docker futtatás
-
-```bash
-docker build -t szemelyzeti .
-docker run -p 3000:3000 szemelyzeti
-```
 
 ## Adatbázis inicializálása
 

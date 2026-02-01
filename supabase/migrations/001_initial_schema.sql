@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create profiles table
 CREATE TABLE profiles (
-    id UUID REFERENCES auth.users(id) PRIMARY KEY,
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
     avatar_url TEXT,
@@ -24,7 +24,7 @@ CREATE TABLE meal_records (
     had_meal BOOLEAN NOT NULL,
     meal_name TEXT,
     reason TEXT,
-    recorded_by UUID REFERENCES auth.users(id) NOT NULL,
+    recorded_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     team TEXT CHECK (team IN ('A', 'B')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -39,7 +39,7 @@ CREATE TABLE holidays (
     date DATE NOT NULL UNIQUE,
     name TEXT NOT NULL,
     description TEXT,
-    created_by UUID REFERENCES auth.users(id) NOT NULL,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

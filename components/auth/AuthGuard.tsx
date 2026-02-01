@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 interface AuthGuardProps {
     children: React.ReactNode
@@ -13,7 +16,7 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
     const router = useRouter()
     const [user, setUser] = useState<User | null>(null)
-    const [isApproved, setIsApproved] = useState(false)
+    const [profile, setProfile] = useState<{ is_approved: boolean; is_admin: boolean } | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -28,7 +31,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
                         if (cached.timestamp && Date.now() - cached.timestamp < 5 * 60 * 1000) {
                             if (cached.user) {
                                 setUser(cached.user)
-                                setIsApproved(cached.isApproved)
+                                setProfile(cached.profile)
                                 setLoading(false)
                                 // Still verify in background but don't block
                             }
@@ -62,33 +65,36 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
                 setUser(session.user)
 
-                // Check if user is approved
-                const { data: profile, error: profileError } = await supabase
+                // Check if user is approved and has a name
+                const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
-                    .select('is_approved, is_admin')
+                    .select('full_name, is_approved, is_admin')
                     .eq('id', session.user.id)
-                    .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
+                    .maybeSingle<{ full_name: string | null; is_approved: boolean; is_admin: boolean }>()
 
                 if (profileError) {
                     console.error("Error fetching profile:", profileError)
                 }
 
-                // Admins are always approved
-                const approved = !!(profile?.is_admin || profile?.is_approved)
-                setIsApproved(approved)
+                setProfile(profileData || null)
 
                 // Cache the auth state
                 sessionStorage.setItem('auth_cache', JSON.stringify({
                     user: session.user,
-                    isApproved: approved,
+                    profile: profileData,
                     timestamp: Date.now()
                 }))
             } catch (err) {
                 console.error("Unexpected error in checkUser:", err)
+                // Clear everything to be safe
                 sessionStorage.removeItem('auth_cache')
-                // Don't await signOut, as it might hang if network is down
-                supabase.auth.signOut()
+                localStorage.removeItem('supabase.auth.token') // Clear Supabase's own storage
+
+                // Sign out without awaiting to force local state cleanup
+                supabase.auth.signOut().catch(() => { })
+
                 setUser(null)
+                setProfile(null)
                 router.push('/login')
             } finally {
                 setLoading(false)
@@ -108,20 +114,19 @@ export function AuthGuard({ children }: AuthGuardProps) {
                 } else {
                     setUser(session.user)
 
-                    // Check approval status
-                    const { data: profile } = await supabase
+                    // Check approval status and name
+                    const { data: profileData } = await supabase
                         .from('profiles')
-                        .select('is_approved, is_admin')
+                        .select('full_name, is_approved, is_admin')
                         .eq('id', session.user.id)
-                        .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
+                        .maybeSingle<{ full_name: string | null; is_approved: boolean; is_admin: boolean }>()
 
-                    const approved = !!(profile?.is_admin || profile?.is_approved)
-                    setIsApproved(approved)
+                    setProfile(profileData || null)
 
                     // Update cache
                     sessionStorage.setItem('auth_cache', JSON.stringify({
                         user: session.user,
-                        isApproved: approved,
+                        profile: profileData,
                         timestamp: Date.now()
                     }))
 
@@ -159,20 +164,19 @@ export function AuthGuard({ children }: AuthGuardProps) {
                     filter: `id=eq.${user.id}`
                 },
                 async () => {
-                    // Refresh approval status
-                    const { data: profile } = await supabase
+                    // Refresh approval status and name
+                    const { data: profileData } = await supabase
                         .from('profiles')
-                        .select('is_approved, is_admin')
+                        .select('full_name, is_approved, is_admin')
                         .eq('id', user.id)
-                        .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
+                        .maybeSingle<{ full_name: string | null; is_approved: boolean; is_admin: boolean }>()
 
-                    const approved = !!(profile?.is_admin || profile?.is_approved)
-                    setIsApproved(approved)
+                    setProfile(profileData || null)
 
                     // Update cache
                     sessionStorage.setItem('auth_cache', JSON.stringify({
                         user,
-                        isApproved: approved,
+                        profile: profileData,
                         timestamp: Date.now()
                     }))
                 }
@@ -199,25 +203,28 @@ export function AuthGuard({ children }: AuthGuardProps) {
         return null
     }
 
-    // Show pending approval screen if user is not approved
-    if (!isApproved) {
+    // Approval Check
+    const approved = !!(profile?.is_admin || profile?.is_approved)
+    if (!approved) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-950">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-950 p-4">
                 <div className="max-w-md w-full mx-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center space-y-6">
+                    <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-2xl p-8 text-center space-y-6">
                         <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
-                            <Loader2 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                            <svg className="h-8 w-8 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                         </div>
                         <div className="space-y-2">
                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                                 Jóváhagyásra vár
                             </h2>
-                            <p className="text-gray-600 dark:text-gray-300">
+                            <p className="text-gray-600 dark:text-gray-300 text-sm">
                                 A fiókod létrejött, de még egy adminisztrátornak jóvá kell hagynia a hozzáférést.
                             </p>
                         </div>
-                        <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-4">
-                            <p className="text-sm text-indigo-900 dark:text-indigo-200">
+                        <div className="bg-indigo-50/50 dark:bg-indigo-900/20 rounded-lg p-4">
+                            <p className="text-xs text-indigo-900 dark:text-indigo-200">
                                 <strong>Email:</strong> {user.email}
                             </p>
                         </div>
@@ -226,7 +233,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
                                 await supabase.auth.signOut()
                                 router.push('/login')
                             }}
-                            className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                            className="w-full h-12 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer text-sm font-medium"
                         >
                             Kijelentkezés
                         </button>

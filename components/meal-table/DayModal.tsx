@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X, Check, XIcon, Trash2, Info } from "lucide-react"
+import { useState } from "react"
+import { X, Check, XIcon, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { supabase } from "@/lib/supabase"
 
 interface DayData {
   date: Date
@@ -37,46 +36,6 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
   const [team, setTeam] = useState<"A" | "B" | null>(day.team || null)
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [foodSuggestions, setFoodSuggestions] = useState<string[]>([])
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
-
-  // Fetch existing meal names from database
-  useEffect(() => {
-    const fetchMealNames = async () => {
-      const { data } = await supabase
-        .from('meal_records')
-        .select('meal_name')
-        .not('meal_name', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(50)
-        .returns<Array<{ meal_name: string | null }>>()
-
-      if (data) {
-        // Get unique meal names
-        const uniqueMeals = Array.from(new Set(data.map(r => r.meal_name).filter(Boolean))) as string[]
-        setFoodSuggestions(uniqueMeals)
-      }
-    }
-
-    fetchMealNames()
-  }, [])
-
-  useEffect(() => {
-    if (hadFood && details) {
-      // Don't show suggestions if the current value exactly matches one of the suggestions (already saved data)
-      const exactMatch = foodSuggestions.some(s => s.toLowerCase() === details.toLowerCase())
-      if (exactMatch) {
-        setShowSuggestions(false)
-        return
-      }
-      const filtered = foodSuggestions.filter((s) => s.toLowerCase().includes(details.toLowerCase()))
-      setFilteredSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0 && details.length > 0)
-    } else {
-      setShowSuggestions(false)
-    }
-  }, [details, hadFood, foodSuggestions])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("hu-HU", {
@@ -100,14 +59,14 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
-        {/* Handle - Mobile */}
-        <div className="flex md:hidden justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
+      {/* Modal - Always mobile bottom sheet style */}
+      <div className="relative w-full bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
+        {/* Handle - Always visible */}
+        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
           <div className="w-10 h-1 rounded-full bg-[#E5E7EB]" />
         </div>
 
@@ -163,76 +122,31 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               <Label htmlFor="details" className="text-sm font-medium text-[#1F2937]">
                 {hadFood ? "Mit ettünk?" : "Miért nem volt kaja?"}
               </Label>
-              <div className="relative isolate">
-                <Input
-                  id="details"
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                  onFocus={() => {
-                    if (hadFood && details && filteredSuggestions.length > 0) {
-                      const exactMatch = foodSuggestions.some(s => s.toLowerCase() === details.toLowerCase())
-                      if (!exactMatch) setShowSuggestions(true)
-                    }
-                  }}
-                  onBlur={() => {
-                    // Delay to allow click on suggestion
-                    setTimeout(() => setShowSuggestions(false), 200)
-                  }}
-                  placeholder={hadFood ? "Pl. Csirkepaprikás" : "Pl. Szabadnap"}
-                  className="h-12 rounded-xl border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500"
-                />
-                {showSuggestions && (
-                  <div
-                    className="absolute top-full left-0 right-0 mt-1 rounded-xl border-2 border-indigo-200 overflow-hidden"
-                    style={{
-                      zIndex: 9999,
-                      backgroundColor: 'white',
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
-                    }}
-                  >
-                    {filteredSuggestions.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          setDetails(suggestion)
-                          setShowSuggestions(false)
-                        }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
-                        style={{ backgroundColor: 'white' }}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Input
+                id="details"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                placeholder={hadFood ? "Pl. Csirkepaprikás" : "Pl. Szabadnap"}
+                className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500"
+              />
             </div>
           )}
 
-          {/* Team Selection - hidden when suggestions are visible */}
-          {hadFood !== null && !showSuggestions && (
+          {/* Team Selection */}
+          {hadFood !== null && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
               <Label htmlFor="team" className="text-sm font-medium text-[#1F2937]">
                 {hadFood ? "Melyik csapattól kaptuk?" : "Melyik csapat dolgozik ezen a napon?"}
               </Label>
               <Select value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
-                <SelectTrigger className="w-full h-12 rounded-xl border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer">
+                <SelectTrigger className="w-full h-12 py-3 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer bg-white">
                   <SelectValue placeholder="Válassz csapatot" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">A csapat</SelectItem>
-                  <SelectItem value="B">B csapat</SelectItem>
+                  <SelectItem value="A">Zs csapat</SelectItem>
+                  <SelectItem value="B">R csapat</SelectItem>
                 </SelectContent>
               </Select>
-
-              {/* Info Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
-                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-800">
-                  <strong>A csapat</strong> = Zs csapat, <strong>B csapat</strong> = Reni csapat
-                </p>
-              </div>
             </div>
           )}
 

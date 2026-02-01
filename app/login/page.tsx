@@ -7,15 +7,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2 } from 'lucide-react'
 
 import { getRedirectUrl } from '@/lib/utils'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export default function LoginPage() {
     const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [modalLoading, setModalLoading] = useState(false)
+    const [loginError, setLoginError] = useState<string | null>(null)
+    const [modalError, setModalError] = useState<string | null>(null)
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [open, setOpen] = useState(false)
 
     const handleGoogleLogin = async () => {
         try {
             setLoading(true)
-            setError(null)
+            setLoginError(null)
 
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
@@ -25,12 +40,37 @@ export default function LoginPage() {
             })
 
             if (error) {
-                setError(error.message)
+                setLoginError(error.message)
                 setLoading(false)
             }
         } catch (err) {
-            setError('Hiba történt a bejelentkezés során')
+            setLoginError('Hiba történt a bejelentkezés során')
             setLoading(false)
+        }
+    }
+
+    const handleEmailLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        try {
+            setModalLoading(true)
+            setModalError(null)
+
+            const { data, error: loginError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            })
+
+            if (loginError) {
+                setModalError(loginError.message)
+                setModalLoading(false)
+                return
+            }
+
+            setOpen(false)
+            window.location.href = '/'
+        } catch (err) {
+            setModalError('Hiba történt a bejelentkezés során')
+            setModalLoading(false)
         }
     }
 
@@ -57,16 +97,13 @@ export default function LoginPage() {
                         <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                             Személyzeti
                         </CardTitle>
-                        <CardDescription className="text-center text-base">
-                            Jelentkezz be a folytatáshoz
-                        </CardDescription>
                     </CardHeader>
 
                     <CardContent className="space-y-4 pb-8">
-                        {error && (
+                        {loginError && (
                             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                                 <p className="text-sm text-red-600 dark:text-red-400 text-center">
-                                    {error}
+                                    {loginError}
                                 </p>
                             </div>
                         )}
@@ -74,7 +111,7 @@ export default function LoginPage() {
                         <Button
                             onClick={handleGoogleLogin}
                             disabled={loading}
-                            className="w-full h-12 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                            className="w-full h-12 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer"
                         >
                             {loading ? (
                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -100,6 +137,62 @@ export default function LoginPage() {
                             )}
                             {loading ? 'Bejelentkezés...' : 'Bejelentkezés Google-lal'}
                         </Button>
+
+                        <Dialog open={open} onOpenChange={(val) => {
+                            setOpen(val)
+                            if (!val) setModalError(null)
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button
+                                    className="w-full h-12 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer"
+                                >
+                                    Nikka
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-md border-none shadow-2xl p-8 bg-white dark:bg-gray-900">
+                                <DialogTitle className="sr-only">Bejelentkezés</DialogTitle>
+                                {modalError && (
+                                    <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                                        <p className="text-sm text-red-600 dark:text-red-400 text-center">
+                                            {modalError}
+                                        </p>
+                                    </div>
+                                )}
+                                <form onSubmit={handleEmailLogin} className="space-y-5">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="email" className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground ml-1">Email</Label>
+                                        <Input
+                                            id="email"
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required
+                                            className="h-12 border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-950/30 focus:ring-0 focus:border-gray-300 dark:focus:border-gray-600 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="password" className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground ml-1">Jelszó</Label>
+                                        <Input
+                                            id="password"
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                            className="h-12 border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-950/30 focus:ring-0 focus:border-gray-300 dark:focus:border-gray-600 transition-all"
+                                        />
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        disabled={modalLoading}
+                                        className="w-full h-12 mt-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer"
+                                    >
+                                        {modalLoading ? (
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        ) : 'Belépés'}
+                                    </Button>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
 
                     </CardContent>
                 </Card>

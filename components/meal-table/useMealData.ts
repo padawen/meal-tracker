@@ -146,10 +146,18 @@ export function useMealData(): UseMealDataReturn {
         return daysArray
     }, [])
 
-    // Initial data load
+    // Initial data load with timeout
     useEffect(() => {
+        let timeoutId: NodeJS.Timeout
+
         const fetchInitialRecords = async () => {
             try {
+                // Timeout after 10 seconds
+                timeoutId = setTimeout(() => {
+                    console.warn('Fetch timeout - setting loading to false')
+                    setLoading(false)
+                }, 10000)
+
                 const startDate = new Date(2026, 0, 1) // Always start from Jan 2026
                 const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0)
                 
@@ -164,11 +172,14 @@ export function useMealData(): UseMealDataReturn {
                     variant: "destructive"
                 })
             } finally {
+                clearTimeout(timeoutId)
                 setLoading(false)
             }
         }
 
         fetchInitialRecords()
+
+        return () => clearTimeout(timeoutId)
     }, [])
 
     // Check if we need to load more data when navigating

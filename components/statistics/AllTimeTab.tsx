@@ -53,7 +53,7 @@ export function AllTimeTab({ rawRecords, holidays, allUsers }: AllTimeTabProps) 
                 />
             </div>
 
-            <UserLeaderboard userStats={allTimeUserStats} title="Minden idők legjobb kitöltői" />
+            <UserLeaderboard userStats={allTimeUserStats} title="Minden idők legjobb kitöltői" showTopBadge={false} />
         </div>
     )
 }

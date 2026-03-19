@@ -29,9 +29,10 @@ export function MedalIcon({ rank }: { rank: number }) {
 interface UserLeaderboardProps {
     userStats: UserStat[]
     title: string
+    showTopBadge?: boolean
 }
 
-export function UserLeaderboard({ userStats, title }: UserLeaderboardProps) {
+export function UserLeaderboard({ userStats, title, showTopBadge = true }: UserLeaderboardProps) {
     return (
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
             <h2 className="text-base font-semibold text-[#1F2937] mb-4">{title}</h2>
@@ -59,7 +60,7 @@ export function UserLeaderboard({ userStats, title }: UserLeaderboardProps) {
                                 <p className="text-xs text-gray-400">{stat.recordCount} rögzített nap</p>
                             </div>
 
-                            {index === 0 && (
+                            {index === 0 && showTopBadge && (
                                 <div className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
                                     Kávépénz nyertese
                                 </div>

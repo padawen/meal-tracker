@@ -68,73 +68,91 @@ const isFutureDate = (date: Date) => {
 export function DayItem({ day, onClick }: DayItemProps) {
     const isDisabled = isFutureDate(day.date) || day.isHoliday
 
+    const getStatusBg = (status: FoodStatus) => {
+        if (status === "volt") return "bg-emerald-50"
+        if (status === "nem") return "bg-rose-50"
+        return "bg-amber-50/50"
+    }
+
+    const getTeamBorder = (team?: string) => {
+        if (team === "A") return "border-blue-400"
+        if (team === "B") return "border-pink-400"
+        return "border-[#E5E7EB]"
+    }
+
     return (
         <button
             onClick={onClick}
             disabled={isDisabled}
-            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-start gap-4 cursor-pointer ${day.isHoliday
+            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex flex-col gap-3 cursor-pointer relative overflow-hidden ${day.isHoliday
                 ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
                 : isFutureDate(day.date)
                     ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
-                    : getStatusStyles(day.status)
+                    : `${getStatusBg(day.status)} ${getTeamBorder(day.team)}`
                 } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
         >
-            <div className="mt-0.5">
-                {day.isHoliday ? (
-                    <AlertCircle className="w-5 h-5 text-purple-500" />
-                ) : (
-                    getStatusIcon(day.status)
-                )}
-            </div>
-
-            <div className="flex-1 min-w-0 pr-4">
+            {/* Top Row: Date, Status Icon, Team indicator */}
+            <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-[#1F2937] whitespace-nowrap shrink-0">
+                    <p className="text-sm font-semibold text-[#1F2937]">
                         {formatDate(day.date)}
                     </p>
                     {isToday(day.date) && (
-                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">Ma</span>
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Ma</span>
                     )}
                 </div>
 
-                {!day.isHoliday && (day.team || day.food || day.reason) && (
-                    <div className="flex items-center gap-2 mt-1 flex-nowrap overflow-hidden">
-                        {day.status === "volt" && day.food && (
-                            <span className="text-sm font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md truncate">
-                                {day.food}
-                            </span>
-                        )}
-                        {day.status === "nem" && day.reason && (
-                            <span className="text-sm font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md truncate">
-                                {day.reason}
-                            </span>
-                        )}
-                        {day.team && (
-                            <span
-                                className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${day.team === "A"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-pink-100 text-pink-700"
-                                    }`}
-                            >
-                                {day.team === "A" ? "Zs" : "R"}
-                            </span>
+                <div className="flex items-center gap-2">
+                    {day.team && (
+                        <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm ${day.team === "A"
+                            ? "bg-blue-600 text-white"
+                            : "bg-pink-600 text-white"
+                            }`}>
+                            {day.team === "A" ? "Zs csapat" : "R csapat"}
+                        </div>
+                    )}
+                    <div className="shrink-0 scale-75">
+                        {day.isHoliday ? (
+                            <AlertCircle className="w-5 h-5 text-purple-500" />
+                        ) : (
+                            getStatusIcon(day.status)
                         )}
                     </div>
-                )}
-
-                {day.isHoliday && (
-                    <p className="text-xs text-purple-600 font-medium mt-1">
-                        {day.holidayName}
-                    </p>
-                )}
-                {day.recordedBy && !day.isHoliday && (
-                    <div className="flex items-center justify-between text-xs text-[#6B7280] mt-1.5 flex-wrap gap-2">
-                        <span>{day.recordedBy}</span>
-                        <span>{day.recordedAt}</span>
-                    </div>
-                )}
+                </div>
             </div>
 
+            {/* Middle Row: Main Content (Food / Reason) */}
+            {!day.isHoliday && (day.food || day.reason) ? (
+                <div className="w-full">
+                    {day.status === "volt" && day.food && (
+                        <h3 className="text-base font-bold text-gray-900 leading-tight">
+                            {day.food}
+                        </h3>
+                    )}
+                    {day.status === "nem" && day.reason && (
+                        <p className="text-sm font-medium text-rose-700 bg-rose-100/50 px-3 py-1.5 rounded-xl inline-block">
+                            {day.reason}
+                        </p>
+                    )}
+                </div>
+            ) : day.isHoliday ? (
+                <p className="text-sm font-medium text-purple-700 italic">
+                    {day.holidayName}
+                </p>
+            ) : !isDisabled && (
+                <p className="text-sm text-amber-500 font-medium italic">
+                    Nincs még rögzítve
+                </p>
+            )}
+
+            {/* Bottom Row: Metadata (Name, Time) */}
+            {day.recordedBy && !day.isHoliday && (
+                <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 pt-1 border-t border-black/5 w-full">
+                    <span className="truncate max-w-[150px]">{day.recordedBy}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{day.recordedAt}</span>
+                </div>
+            )}
         </button>
     )
 }

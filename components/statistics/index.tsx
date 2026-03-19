@@ -48,10 +48,8 @@ export function Statistics() {
 
     return (
         <div className="space-y-4">
-            {/* Connected 3+2 tab layout */}
             <div className="flex justify-center">
                 <div className="bg-[#F3F4F6] rounded-xl p-1 inline-flex flex-col gap-0.5">
-                    {/* Top row: 3 tabs */}
                     <div className="flex">
                         {TOP_TABS.map(tab => (
                             <button
@@ -66,7 +64,6 @@ export function Statistics() {
                             </button>
                         ))}
                     </div>
-                    {/* Bottom row: 2 tabs */}
                     <div className="flex justify-center">
                         {BOTTOM_TABS.map(tab => (
                             <button

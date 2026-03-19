@@ -166,7 +166,6 @@ export function HolidaysManager() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -245,7 +244,6 @@ export function HolidaysManager() {
                 </div>
             </div>
 
-            {/* Info Card */}
             <div className="bg-purple-50 rounded-2xl border border-purple-200 p-4">
                 <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
@@ -258,7 +256,6 @@ export function HolidaysManager() {
                 </div>
             </div>
 
-            {/* Holidays List */}
             <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-[#E5E7EB]">
                     <h3 className="font-semibold text-[#1F2937]">

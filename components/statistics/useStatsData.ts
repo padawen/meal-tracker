@@ -58,7 +58,6 @@ export function useStatsData(): UseStatsDataReturn {
     useEffect(() => {
         const fetchStatistics = async () => {
             try {
-                // Fetch full current year + previous year to cover history needs reasonably well without over-fetching initially
                 const currentYear = today.getFullYear()
                 const fetchStart = new Date(currentYear - 1, 0, 1)
                 const fetchEnd = new Date(currentYear, 11, 31)
@@ -83,10 +82,8 @@ export function useStatsData(): UseStatsDataReturn {
                 setRawRecords(records)
                 setHolidays(holidaysData)
 
-                // Filter records to CURRENT YEAR ONLY for user stats (best fillers of this year)
                 const currentYearRecords = records.filter(r => new Date(r.date).getFullYear() === currentYear)
 
-                // Fetch profiles for users in records
                 const uniqueUserIds = Array.from(new Set(records.map(r => r.recorded_by)))
                 let profiles: Array<{ id: string; full_name: string | null; email: string; avatar_url?: string | null }> = []
                 if (uniqueUserIds.length > 0) {
@@ -100,7 +97,6 @@ export function useStatsData(): UseStatsDataReturn {
                 const profilesMap = new Map(profiles.map(p => [p.id, { full_name: p.full_name, email: p.email, avatar_url: p.avatar_url }]))
                 setAllUsers(profilesMap)
 
-                // Calculate User Stats for CURRENT YEAR
                 const counts = new Map<string, number>()
                 currentYearRecords.forEach(r => {
                     counts.set(r.recorded_by, (counts.get(r.recorded_by) || 0) + 1)
@@ -175,7 +171,6 @@ export function useStatsData(): UseStatsDataReturn {
         return dayTime >= weekStart.getTime() && dayTime < weekEnd.getTime()
     })
 
-    // Ensure strict filtering for current month/year to avoid boundary issues
     const currentMonthDays = allDays.filter(day =>
         day.date.getMonth() === today.getMonth() && day.date.getFullYear() === today.getFullYear()
     )

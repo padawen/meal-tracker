@@ -181,14 +181,39 @@ export function MealTable() {
                 />
                 <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 shadow-sm">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                            <AlertCircle className="w-5 h-5 text-amber-600" />
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${totalEmptyDays === 0 ? "bg-emerald-100" : "bg-amber-100"}`}>
+                            {totalEmptyDays === 0 ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                                <AlertCircle className="w-5 h-5 text-amber-600" />
+                            )}
                         </div>
                         <div className="flex-1">
-                            <p className="text-xs text-[#6B7280] font-medium">Kitöltetlen</p>
-                            <p className="text-lg font-semibold text-[#1F2937]">{totalEmptyDays} nap</p>
+                            {totalEmptyDays === 0 ? (
+                                <>
+                                    <p className="text-xs text-[#6B7280] font-medium">Gratulálunk!</p>
+                                    <p className="text-lg font-semibold text-[#1F2937]">Minden kitöltve!</p>
+                                </>
+                            ) : totalEmptyDays === 1 && allRecords.find(d =>
+                                d.date.getDate() === today.getDate() &&
+                                d.date.getMonth() === today.getMonth() &&
+                                d.date.getFullYear() === today.getFullYear() &&
+                                d.status === "empty" && !d.isHoliday
+                            ) ? (
+                                <>
+                                    <p className="text-xs text-[#6B7280] font-medium">Már csak egy!</p>
+                                    <p className="text-lg font-semibold text-[#1F2937]">Csak a mai hiányzik!</p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-xs text-[#6B7280] font-medium">Kitöltetlen</p>
+                                    <p className="text-lg font-semibold text-[#1F2937]">{totalEmptyDays} nap</p>
+                                </>
+                            )}
                         </div>
-                        <div className="text-2xl">{getEmptyEmoji()}</div>
+                        <div className="text-2xl">
+                            {totalEmptyDays === 0 ? "🥳" : getEmptyEmoji()}
+                        </div>
                     </div>
                 </div>
             </div>

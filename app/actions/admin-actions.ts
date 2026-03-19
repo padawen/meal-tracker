@@ -24,7 +24,6 @@ async function getAdminStatus(client: SupabaseServerClient, userId: string) {
 export async function approveUserAction(targetUserId: string, requesterId: string) {
     const supabase = await createSupabaseServerClient()
 
-    // Check if requester is admin
     const { isAdmin } = await getAdminStatus(supabase, requesterId)
     if (!isAdmin) throw new Error('Unauthorized')
 

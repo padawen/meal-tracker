@@ -117,6 +117,7 @@ export function useMealData(): UseMealDataReturn {
             let food: string | undefined
             let reason: string | undefined
             let recordedBy: string | undefined
+            let recordedByUserId: string | undefined
             let recordedAt: string | undefined
             let team: "A" | "B" | undefined
 
@@ -124,6 +125,7 @@ export function useMealData(): UseMealDataReturn {
                 status = record.had_meal ? "volt" : "nem"
                 food = record.meal_name || undefined
                 reason = record.reason || undefined
+                recordedByUserId = record.recorded_by
                 team = (record.team as "A" | "B") || undefined
                 const profile = profilesMap.get(record.recorded_by)
                 recordedBy = profile?.full_name || profile?.email?.split('@')[0] || 'Ismeretlen'
@@ -135,7 +137,7 @@ export function useMealData(): UseMealDataReturn {
 
             daysArray.push({
                 date: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
-                status, food, reason, recordedBy, recordedAt, team,
+                status, food, reason, recordedBy, recordedByUserId, recordedAt, team,
                 isHoliday: !!holidayName, holidayName
             })
 

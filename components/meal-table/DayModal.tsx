@@ -13,12 +13,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import { useAuth } from "@/components/auth/AuthGuard"
+
 interface DayData {
   date: Date
   status: "volt" | "nem" | "empty"
   food?: string
   reason?: string
   recordedBy?: string
+  recordedByUserId?: string
   recordedAt?: string
   team?: "A" | "B"
 }
@@ -31,6 +34,9 @@ interface DayModalProps {
 }
 
 export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
+  const { user } = useAuth()
+  const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
+
   const getSuggestedTeam = (date: Date): "A" | "B" => {
 
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -107,21 +113,23 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             <Label className="text-sm font-medium text-[#1F2937]">Volt személyzeti étkezés ezen a napon?</Label>
             <div className="grid grid-cols-2 gap-3">
               <button
+                disabled={!canEdit}
                 onClick={() => setHadFood(true)}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === true
                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                   : "border-[#E5E7EB] hover:border-emerald-300 text-[#6B7280]"
-                  }`}
+                  } ${!canEdit ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <Check className="w-5 h-5" />
                 <span className="font-medium">Igen</span>
               </button>
               <button
+                disabled={!canEdit}
                 onClick={() => setHadFood(false)}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === false
                   ? "border-rose-500 bg-rose-50 text-rose-700"
                   : "border-[#E5E7EB] hover:border-rose-300 text-[#6B7280]"
-                  }`}
+                  } ${!canEdit ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <XIcon className="w-5 h-5" />
                 <span className="font-medium">Nem</span>
@@ -136,10 +144,11 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               </Label>
               <Input
                 id="details"
+                disabled={!canEdit}
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder={hadFood ? "Pl. Csirkepaprikás" : "Pl. Szabadnap"}
-                className="h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500"
+                className={`h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 ${!canEdit ? "bg-gray-50 text-gray-400" : ""}`}
               />
             </div>
           )}
@@ -149,8 +158,8 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               <Label htmlFor="team" className="text-sm font-medium text-[#1F2937]">
                 {hadFood ? "Melyik csapattól kaptuk?" : "Melyik csapat dolgozik ezen a napon?"}
               </Label>
-              <Select value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
-                <SelectTrigger className="w-full h-12 py-3 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer bg-white">
+              <Select disabled={!canEdit} value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
+                <SelectTrigger className={`w-full h-12 py-3 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer bg-white ${!canEdit ? "bg-gray-50 text-gray-400" : ""}`}>
                   <SelectValue placeholder="Válassz csapatot" />
                 </SelectTrigger>
                 <SelectContent>
@@ -161,22 +170,20 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             </div>
           )}
 
+          {!canEdit && (
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-start gap-3">
+              <XIcon className="w-4 h-4 text-amber-600 mt-0.5" />
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Ezt a bejegyzést <span className="font-semibold">{day.recordedBy}</span> hozta létre. Csak ő módosíthatja.
+              </p>
+            </div>
+          )}
+
           <p className="text-xs text-[#9CA3AF] text-center">
-            Egy naphoz egy bejegyzés tartozik, de később módosítható.
+            Egy naphoz egy bejegyzés tartozik {canEdit && ", de később módosítható"}.
           </p>
         </div>
         <div className="px-6 pb-6 pt-2 space-y-3">
-          {day.status !== "empty" && onDelete && (
-            <Button
-              variant="outline"
-              onClick={handleDelete}
-              className="w-full h-12 rounded-xl border-red-200 text-red-600 hover:bg-red-50 bg-transparent flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-              Törlés
-            </Button>
-          )}
-
           <div className="flex gap-3">
             <Button
               variant="outline"
@@ -185,13 +192,15 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             >
               Mégse
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={hadFood === null}
-              className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer"
-            >
-              Mentés
-            </Button>
+            {canEdit && (
+              <Button
+                onClick={handleSave}
+                disabled={hadFood === null}
+                className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer"
+              >
+                Mentés
+              </Button>
+            )}
           </div>
         </div>
       </div>

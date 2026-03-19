@@ -8,6 +8,7 @@ export interface DayData {
     food?: string
     reason?: string
     recordedBy?: string
+    recordedByUserId?: string
     recordedAt?: string
     team?: "A" | "B"
     isHoliday?: boolean

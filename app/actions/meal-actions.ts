@@ -16,26 +16,24 @@ export async function saveMealAction(
 ) {
     const supabase = await createSupabaseServerClient()
 
+    // 1. Check if record exists
+    const { data: existing } = await supabase
+        .from('meal_records')
+        .select('recorded_by')
+        .eq('date', record.date)
+        .maybeSingle()
+
+    // 2. If exists, ensure only original user can edit
+    if (existing && existing.recorded_by !== userId) {
+        throw new Error('Only the creator can modify this record')
+    }
+
     const { error } = await supabase
         .from('meal_records')
         .upsert({
             ...record,
             recorded_by: userId,
         }, { onConflict: 'date' })
-
-    if (error) throw error
-
-    revalidatePath('/')
-    return { success: true }
-}
-
-export async function deleteMealAction(date: string, userId: string) {
-    const supabase = await createSupabaseServerClient()
-
-    const { error } = await supabase
-        .from('meal_records')
-        .delete()
-        .eq('date', date)
 
     if (error) throw error
 

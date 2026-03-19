@@ -12,7 +12,7 @@ import { ViewToggle } from "./ViewToggle"
 import { DayItem, DayData } from "./DayItem"
 import { useMealData } from "./useMealData"
 import { Loader2 } from "lucide-react"
-import { saveMealAction, deleteMealAction } from "@/app/actions/meal-actions"
+import { saveMealAction } from "@/app/actions/meal-actions"
 
 export function MealTable() {
     const [view, setView] = useState<"week" | "month">("week")
@@ -82,35 +82,6 @@ export function MealTable() {
         })
     }
 
-    const handleDelete = async (dayData: DayData) => {
-        if (!user) return
-
-        const dateStr = formatDateStr(dayData.date)
-
-        startTransition(async () => {
-            try {
-                await deleteMealAction(dateStr, user.id)
-
-                const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
-                if (indexToUpdate !== -1) {
-                    const updatedRecords = [...allRecords]
-                    updatedRecords[indexToUpdate] = {
-                        ...updatedRecords[indexToUpdate],
-                        status: "empty",
-                        food: undefined,
-                        reason: undefined,
-                        team: undefined,
-                    }
-                    setAllRecords(updatedRecords)
-                }
-
-                toast({ title: "Sikeres törlés", description: "Törölve" })
-            } catch (error) {
-                console.error('Error deleting meal record:', error)
-                toast({ title: "Hiba", description: "Nem sikerült törölni a rekordot", variant: "destructive" })
-            }
-        })
-    }
 
     const handleDayClick = (day: DayData) => {
         if (day.isHoliday) {
@@ -263,7 +234,7 @@ export function MealTable() {
                 ))}
             </div>
 
-            {selectedDay && <DayModal day={selectedDay} onClose={() => setSelectedDay(null)} onSave={handleSave} onDelete={handleDelete} />}
+            {selectedDay && <DayModal day={selectedDay} onClose={() => setSelectedDay(null)} onSave={handleSave} />}
         </div>
     )
 }

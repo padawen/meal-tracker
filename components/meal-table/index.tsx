@@ -1,11 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Calendar, AlertCircle, ArrowLeft } from "lucide-react"
+import { CheckCircle2, Calendar, AlertCircle, ArrowLeft, ArrowRight } from "lucide-react"
 import { DayModal } from "./DayModal"
 import { ConfettiEffect } from "./ConfettiEffect"
-import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/AuthGuard"
 import { useToast } from "@/hooks/use-toast"
 import { Header, Nav, PeriodStatsCard } from "@/components/shared"
@@ -13,11 +12,13 @@ import { ViewToggle } from "./ViewToggle"
 import { DayItem, DayData } from "./DayItem"
 import { useMealData } from "./useMealData"
 import { Loader2 } from "lucide-react"
+import { saveMealAction, deleteMealAction } from "@/app/actions/meal-actions"
 
 export function MealTable() {
     const [view, setView] = useState<"week" | "month">("week")
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
     const [showConfetti, setShowConfetti] = useState(false)
+    const [isPending, startTransition] = useTransition()
     const { user } = useAuth()
     const router = useRouter()
     const { toast } = useToast()
@@ -42,74 +43,73 @@ export function MealTable() {
     const handleSave = async (dayData: DayData, hadFood: boolean, details: string, team?: "A" | "B") => {
         if (!user) return
 
-        try {
-            const dateStr = formatDateStr(dayData.date)
+        const dateStr = formatDateStr(dayData.date)
 
-            const { error } = await supabase
-                .from('meal_records')
-                .upsert({
+        startTransition(async () => {
+            try {
+                await saveMealAction({
                     date: dateStr,
                     had_meal: hadFood,
                     meal_name: hadFood ? details : null,
                     reason: !hadFood ? details : null,
-                    recorded_by: user.id,
                     team: team || null,
-                }, { onConflict: 'date' })
+                }, user.id)
 
-            if (error) throw error
-
-            if (hadFood) {
-                setShowConfetti(true)
-                setTimeout(() => setShowConfetti(false), 3000)
-            }
-
-            const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
-            if (indexToUpdate !== -1) {
-                const updatedRecords = [...allRecords]
-                updatedRecords[indexToUpdate] = {
-                    ...updatedRecords[indexToUpdate],
-                    status: hadFood ? "volt" : "nem",
-                    food: hadFood ? details : undefined,
-                    reason: !hadFood ? details : undefined,
-                    team: team,
+                if (hadFood) {
+                    setShowConfetti(true)
+                    setTimeout(() => setShowConfetti(false), 3000)
                 }
-                setAllRecords(updatedRecords)
-            }
 
-            toast({ title: "Sikeres mentés", description: "Frissítve" })
-            setSelectedDay(null)
-        } catch (error) {
-            console.error('Error saving meal record:', error)
-            toast({ title: "Hiba", description: "Nem sikerült menteni az adatokat", variant: "destructive" })
-        }
+                const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
+                if (indexToUpdate !== -1) {
+                    const updatedRecords = [...allRecords]
+                    updatedRecords[indexToUpdate] = {
+                        ...updatedRecords[indexToUpdate],
+                        status: hadFood ? "volt" : "nem",
+                        food: hadFood ? details : undefined,
+                        reason: !hadFood ? details : undefined,
+                        team: team,
+                    }
+                    setAllRecords(updatedRecords)
+                }
+
+                toast({ title: "Sikeres mentés", description: "Frissítve" })
+                setSelectedDay(null)
+            } catch (error) {
+                console.error('Error saving meal record:', error)
+                toast({ title: "Hiba", description: "Nem sikerült menteni az adatokat", variant: "destructive" })
+            }
+        })
     }
 
     const handleDelete = async (dayData: DayData) => {
         if (!user) return
 
-        try {
-            const dateStr = formatDateStr(dayData.date)
-            const { error } = await supabase.from('meal_records').delete().eq('date', dateStr)
-            if (error) throw error
+        const dateStr = formatDateStr(dayData.date)
 
-            const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
-            if (indexToUpdate !== -1) {
-                const updatedRecords = [...allRecords]
-                updatedRecords[indexToUpdate] = {
-                    ...updatedRecords[indexToUpdate],
-                    status: "empty",
-                    food: undefined,
-                    reason: undefined,
-                    team: undefined,
+        startTransition(async () => {
+            try {
+                await deleteMealAction(dateStr, user.id)
+
+                const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
+                if (indexToUpdate !== -1) {
+                    const updatedRecords = [...allRecords]
+                    updatedRecords[indexToUpdate] = {
+                        ...updatedRecords[indexToUpdate],
+                        status: "empty",
+                        food: undefined,
+                        reason: undefined,
+                        team: undefined,
+                    }
+                    setAllRecords(updatedRecords)
                 }
-                setAllRecords(updatedRecords)
-            }
 
-            toast({ title: "Sikeres törlés", description: "Törölve" })
-        } catch (error) {
-            console.error('Error deleting meal record:', error)
-            toast({ title: "Hiba", description: "Nem sikerült törölni a rekordot", variant: "destructive" })
-        }
+                toast({ title: "Sikeres törlés", description: "Törölve" })
+            } catch (error) {
+                console.error('Error deleting meal record:', error)
+                toast({ title: "Hiba", description: "Nem sikerült törölni a rekordot", variant: "destructive" })
+            }
+        })
     }
 
     const handleDayClick = (day: DayData) => {
@@ -136,16 +136,15 @@ export function MealTable() {
             const weekStart = getWeekStart(weekOffset)
             const weekEnd = new Date(weekStart)
             weekEnd.setDate(weekStart.getDate() + 6)
-            
-            // Clamp to 2026 start - don't show dates before 2026
+
             const minDate = new Date(2026, 0, 1)
             const actualStart = weekStart < minDate ? minDate : weekStart
-            
+
             const startMonth = actualStart.toLocaleDateString("hu-HU", { month: "short" }).replace('.', '')
             const endMonth = weekEnd.toLocaleDateString("hu-HU", { month: "short" }).replace('.', '')
             const startYear = actualStart.getFullYear()
             const endYear = weekEnd.getFullYear()
-            
+
             if (startYear !== endYear) {
                 return `${startYear}. ${startMonth} ${actualStart.getDate()} – ${endYear}. ${endMonth} ${weekEnd.getDate()}`
             }
@@ -177,14 +176,14 @@ export function MealTable() {
             <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                 <p className="text-sm text-gray-500 animate-pulse">Adatok betöltése...</p>
-                <button 
-                  onClick={() => {
-                    sessionStorage.removeItem('auth_checked');
-                    router.refresh();
-                  }}
-                  className="text-xs text-indigo-500 hover:text-indigo-700 underline cursor-pointer"
+                <button
+                    onClick={() => {
+                        sessionStorage.removeItem('auth_checked');
+                        router.refresh();
+                    }}
+                    className="text-xs text-indigo-500 hover:text-indigo-700 underline cursor-pointer"
                 >
-                  Túl sokáig tart? Frissítés
+                    Túl sokáig tart? Frissítés
                 </button>
             </div>
         )
@@ -194,11 +193,7 @@ export function MealTable() {
         <div className="space-y-4">
             {showConfetti && <ConfettiEffect />}
 
-            <Header
-                title="Kaja tábla"
-                description="A napokra kattintva rögzíthető vagy módosítható, hogy volt-e személyzeti étkezés."
-                icon={<Calendar className="w-6 h-6 text-indigo-600" />}
-            />
+
 
             <div className="grid grid-cols-1 gap-3">
                 <PeriodStatsCard
@@ -238,20 +233,28 @@ export function MealTable() {
                 canNext={true}
             />
 
-            {/* Far date - show "Mai nap" button */}
             {((view === "month" && monthOffset !== 0) || (view === "week" && weekOffset !== 0)) && (
-                <button 
-                    onClick={() => {
-                        setWeekOffset(0)
-                        setMonthOffset(0)
-                    }}
-                    className="group flex items-center justify-center gap-2 w-full bg-white/80 backdrop-blur-sm border border-indigo-100 hover:border-indigo-300 rounded-xl py-2.5 px-4  shadow-sm hover:shadow-lg cursor-pointer"
-                >
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 group-hover:bg-indigo-500 flex items-center justify-center ">
-                        <ArrowLeft className="w-3.5 h-3.5 text-indigo-600 group-hover:text-white " />
+                <div className="flex justify-center">
+                    <div className="bg-[#F3F4F6] rounded-xl p-1 inline-flex">
+                        <button
+                            onClick={() => {
+                                setWeekOffset(0)
+                                setMonthOffset(0)
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer bg-white text-[#1F2937] shadow-sm"
+                        >
+                            <div className="flex items-center justify-center">
+                                {(view === "week" ? weekOffset < 0 : monthOffset < 0)
+                                    ? <ArrowRight className="w-4 h-4" />
+                                    : <ArrowLeft className="w-4 h-4" />
+                                }
+                            </div>
+                            <span>
+                                {(view === "week" ? weekOffset < 0 : monthOffset < 0) ? "Előre a mai napra" : "Vissza a mai napra"}
+                            </span>
+                        </button>
                     </div>
-                    <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-600 ">Vissza a mai napra</span>
-                </button>
+                </div>
             )}
 
             <div className="space-y-3">

@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { CheckCircle2, XCircle, AlertCircle, Check, X, Minus } from "lucide-react"
 
 export type FoodStatus = "volt" | "nem" | "empty"
 
@@ -71,46 +71,69 @@ export function DayItem({ day, onClick }: DayItemProps) {
         <button
             onClick={onClick}
             disabled={isDisabled}
-            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-center gap-4 cursor-pointer ${day.isHoliday
+            className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex items-start gap-4 cursor-pointer ${day.isHoliday
                 ? 'opacity-75 cursor-not-allowed bg-purple-50 border-purple-300'
                 : isFutureDate(day.date)
                     ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
                     : getStatusStyles(day.status)
                 } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
         >
-            {getStatusIcon(day.status)}
+            <div className="mt-0.5">
+                {day.isHoliday ? (
+                    <AlertCircle className="w-5 h-5 text-purple-500" />
+                ) : (
+                    getStatusIcon(day.status)
+                )}
+            </div>
 
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pr-4">
                 <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-[#1F2937]">{formatDate(day.date)}</p>
+                    <p className="text-sm font-semibold text-[#1F2937] whitespace-nowrap shrink-0">
+                        {formatDate(day.date)}
+                    </p>
                     {isToday(day.date) && (
-                        <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Ma</span>
+                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">Ma</span>
                     )}
                 </div>
+
+                {!day.isHoliday && (day.team || day.food || day.reason) && (
+                    <div className="flex items-center gap-2 mt-1 flex-nowrap overflow-hidden">
+                        {day.status === "volt" && day.food && (
+                            <span className="text-sm font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md truncate">
+                                {day.food}
+                            </span>
+                        )}
+                        {day.status === "nem" && day.reason && (
+                            <span className="text-sm font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md truncate">
+                                {day.reason}
+                            </span>
+                        )}
+                        {day.team && (
+                            <span
+                                className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${day.team === "A"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-pink-100 text-pink-700"
+                                    }`}
+                            >
+                                {day.team === "A" ? "Zs" : "R"}
+                            </span>
+                        )}
+                    </div>
+                )}
+
                 {day.isHoliday && (
-                    <p className="text-xs text-purple-600 font-medium">
+                    <p className="text-xs text-purple-600 font-medium mt-1">
                         {day.holidayName}
                     </p>
                 )}
                 {day.recordedBy && !day.isHoliday && (
-                    <p className="text-xs text-[#6B7280]">
-                        {day.recordedBy} · {day.recordedAt}
-                    </p>
+                    <div className="flex items-center justify-between text-xs text-[#6B7280] mt-1.5 flex-wrap gap-2">
+                        <span>{day.recordedBy}</span>
+                        <span>{day.recordedAt}</span>
+                    </div>
                 )}
             </div>
 
-            <span
-                className={`text-xs font-medium px-2 py-1 rounded-full ${day.isHoliday
-                    ? "bg-purple-100 text-purple-700"
-                    : day.status === "volt"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : day.status === "nem"
-                            ? "bg-rose-100 text-rose-700"
-                            : "bg-amber-100 text-amber-700"
-                    }`}
-            >
-                {day.isHoliday ? "Szünnap" : day.status === "volt" ? "Volt" : day.status === "nem" ? "Nem volt" : "Kitöltetlen"}
-            </span>
         </button>
     )
 }

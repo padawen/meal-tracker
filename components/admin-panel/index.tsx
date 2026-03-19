@@ -1,12 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useTransition } from "react"
 import { Shield, Check, X, Clock, Mail, User, Loader2, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { HolidaysManager } from "./HolidaysManager"
-import { supabase } from "@/lib/supabase"
+import { supabase } from '@/lib/supabase/client'
 import { useToast } from "@/hooks/use-toast"
+import { approveUserAction, rejectUserAction, toggleAdminAction } from "@/app/actions/admin-actions"
+import { TabNavigation, UserAvatar } from "@/components/shared"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface UserData {
   id: string
@@ -18,11 +29,29 @@ interface UserData {
   created_at: string
 }
 
+const MASTER_ADMIN_IDS = process.env.NEXT_PUBLIC_MASTER_ADMIN_IDS?.split(',').map(id => id.trim()) || []
+
 export function AdminPanel() {
   const [activeTab, setActiveTab] = useState<"users" | "holidays">("users")
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUserProfile, setCurrentUserProfile] = useState<UserData | null>(null)
+  const [confirmData, setConfirmData] = useState<{ id: string, name: string, type: 'admin' | 'reject' | 'approve', isAdmin?: boolean } | null>(null)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
+
+  const fetchCurrentUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      setCurrentUserProfile(data)
+    }
+  }
 
   const fetchUsers = async () => {
     try {
@@ -47,64 +76,85 @@ export function AdminPanel() {
 
   useEffect(() => {
     fetchUsers()
+    fetchCurrentUserProfile()
   }, [])
 
   const handleApprove = async (userId: string) => {
-    try {
+    if (!currentUserProfile) return
 
+    startTransition(async () => {
+      try {
+        await approveUserAction(userId, currentUserProfile.id)
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ is_approved: true })
-        .eq('id', userId)
-        .select()
-
-
-
-      if (error) throw error
-
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_approved: true } : u))
-      toast({
-        title: "Sikeres jóváhagyás",
-        description: "A felhasználó hozzáférése engedélyezve lett",
-      })
-    } catch (error) {
-      console.error('Error approving user:', error)
-      toast({
-        title: "Hiba",
-        description: "Nem sikerült jóváhagyni a felhasználót",
-        variant: "destructive"
-      })
-    }
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_approved: true } : u))
+        toast({
+          title: "Sikeres jóváhagyás",
+          description: "A felhasználó hozzáférése engedélyezve lett",
+        })
+      } catch (error) {
+        console.error('Error approving user:', error)
+        toast({
+          title: "Hiba",
+          description: "Nem sikerült jóváhagyni a felhasználót",
+          variant: "destructive"
+        })
+      }
+    })
   }
 
   const handleReject = async (userId: string) => {
-    try {
+    if (!currentUserProfile) return
 
+    startTransition(async () => {
+      try {
+        await rejectUserAction(userId, currentUserProfile.id)
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ is_approved: false })
-        .eq('id', userId)
-        .select()
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_approved: false, is_admin: false } : u))
+        toast({
+          title: "Elutasítva",
+          description: "A felhasználó hozzáférése visszavonva",
+        })
+      } catch (error) {
+        console.error('Error rejecting user:', error)
+        toast({
+          title: "Hiba",
+          description: "Nem sikerült elutasítani a felhasználót",
+          variant: "destructive"
+        })
+      }
+    })
+  }
 
+  const handleToggleAdmin = async (userId: string, currentIsAdmin: boolean) => {
+    if (!currentUserProfile) return
 
-
-      if (error) throw error
-
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_approved: false } : u))
+    if (userId === currentUserProfile.id) {
       toast({
-        title: "Elutasítva",
-        description: "A felhasználó hozzáférése visszavonva",
-      })
-    } catch (error) {
-      console.error('Error rejecting user:', error)
-      toast({
-        title: "Hiba",
-        description: "Nem sikerült elutasítani a felhasználót",
+        title: "Figyelem",
+        description: "Saját magadtól nem vonhatod meg az admin jogot",
         variant: "destructive"
       })
+      return
     }
+
+    startTransition(async () => {
+      try {
+        await toggleAdminAction(userId, currentIsAdmin, currentUserProfile.id)
+
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_admin: !currentIsAdmin } : u))
+        toast({
+          title: !currentIsAdmin ? "Admin jog megadva" : "Admin jog visszavonva",
+          description: "A felhasználó jogosultságai frissültek",
+        })
+      } catch (error) {
+        console.error('Error toggling admin:', error)
+        toast({
+          title: "Hiba",
+          description: "Nem sikerült módosítani a jogosultságokat",
+          variant: "destructive"
+        })
+      }
+    })
   }
 
   const getStatusBadge = (user: UserData) => {
@@ -134,18 +184,6 @@ export function AdminPanel() {
     )
   }
 
-  const getInitials = (name: string | null, email: string) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    }
-    return email.charAt(0).toUpperCase()
-  }
-
   const pendingUsers = users.filter((u) => !u.is_approved && !u.is_admin)
   const approvedUsers = users.filter((u) => u.is_approved || u.is_admin)
 
@@ -159,51 +197,22 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-indigo-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-[#1F2937]">Admin Panel</h1>
-            <p className="text-sm text-[#6B7280]">Felhasználók és szünnapok kezelése</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Tab Navigation */}
-      <div className="flex justify-center">
-        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-1 shadow-sm inline-flex">
-          <button
-            onClick={() => setActiveTab("users")}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer ${activeTab === "users"
-              ? "bg-indigo-600 text-white shadow-sm"
-              : "text-[#6B7280] hover:text-[#1F2937]"
-              }`}
-          >
-            <User className="w-4 h-4" />
-            Felhasználók
-          </button>
-          <button
-            onClick={() => setActiveTab("holidays")}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer ${activeTab === "holidays"
-              ? "bg-indigo-600 text-white shadow-sm"
-              : "text-[#6B7280] hover:text-[#1F2937]"
-              }`}
-          >
-            <Calendar className="w-4 h-4" />
-            Szünnapok
-          </button>
-        </div>
-      </div>
 
-      {/* Content based on active tab */}
+      <TabNavigation
+        tabs={[
+          { key: "users", label: "Felhasználók" },
+          { key: "holidays", label: "Szünnapok" },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        size="sm"
+      />
+
       {activeTab === "holidays" ? (
         <HolidaysManager />
       ) : (
         <>
-          {/* Info Card */}
           <div className="bg-indigo-50 rounded-2xl border border-indigo-200 p-4">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
@@ -216,7 +225,6 @@ export function AdminPanel() {
             </div>
           </div>
 
-          {/* Pending Users */}
           {pendingUsers.length > 0 && (
             <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-[#E5E7EB] bg-amber-50">
@@ -228,15 +236,9 @@ export function AdminPanel() {
               <div className="divide-y divide-[#E5E7EB]">
                 {pendingUsers.map((user) => (
                   <div key={user.id} className="p-4">
-                    {/* Unified Mobile-style layout */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={user.avatar_url || undefined} />
-                          <AvatarFallback className="bg-amber-100 text-amber-700 text-sm font-medium">
-                            {getInitials(user.full_name, user.email)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar avatarUrl={user.avatar_url} name={user.full_name || user.email} size="md" />
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-[#1F2937]">
                             {user.full_name || user.email.split('@')[0]}
@@ -250,7 +252,14 @@ export function AdminPanel() {
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          onClick={() => handleApprove(user.id)}
+                          onClick={() => {
+                            setConfirmData({
+                              id: user.id,
+                              name: user.full_name || user.email.split('@')[0],
+                              type: 'approve'
+                            })
+                            setIsConfirmOpen(true)
+                          }}
                           className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 cursor-pointer"
                         >
                           <Check className="w-4 h-4 mr-1" />
@@ -259,7 +268,14 @@ export function AdminPanel() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleReject(user.id)}
+                          onClick={() => {
+                            setConfirmData({
+                              id: user.id,
+                              name: user.full_name || user.email.split('@')[0],
+                              type: 'reject'
+                            })
+                            setIsConfirmOpen(true)
+                          }}
                           className="flex-1 border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 cursor-pointer"
                         >
                           <X className="w-4 h-4 mr-1" />
@@ -273,7 +289,6 @@ export function AdminPanel() {
             </div>
           )}
 
-          {/* Approved Users */}
           <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-[#E5E7EB]">
               <h2 className="font-semibold text-[#1F2937] flex items-center gap-2">
@@ -285,15 +300,9 @@ export function AdminPanel() {
               <div className="divide-y divide-[#E5E7EB]">
                 {approvedUsers.map((user) => (
                   <div key={user.id} className="p-4">
-                    {/* Unified Mobile-style layout */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={user.avatar_url || undefined} />
-                          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-medium">
-                            {getInitials(user.full_name, user.email)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar avatarUrl={user.avatar_url} name={user.full_name || user.email} size="md" />
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-[#1F2937]">
                             {user.full_name || user.email.split('@')[0]}
@@ -305,17 +314,78 @@ export function AdminPanel() {
                         <Mail className="w-3 h-3 flex-shrink-0" />
                         {user.email}
                       </p>
-                      {!user.is_admin && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleReject(user.id)}
-                          className="w-full border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 cursor-pointer"
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          Visszavon
-                        </Button>
-                      )}
+                      {(() => {
+                        const isMasterAdmin = currentUserProfile && MASTER_ADMIN_IDS.includes(currentUserProfile.id)
+                        const isTargetAdmin = user.is_admin
+                        const isTargetMaster = MASTER_ADMIN_IDS.includes(user.id)
+
+                        if (isTargetMaster) return null
+
+                        if (isTargetAdmin) {
+                          if (isMasterAdmin) {
+                            return (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setConfirmData({
+                                    id: user.id,
+                                    name: user.full_name || user.email.split('@')[0],
+                                    type: 'admin',
+                                    isAdmin: true
+                                  })
+                                  setIsConfirmOpen(true)
+                                }}
+                                className="w-full border-purple-300 text-purple-600 hover:bg-purple-50 rounded-lg h-9 cursor-pointer"
+                              >
+                                <Shield className="w-4 h-4 mr-1" />
+                                Admin jog visszavonása
+                              </Button>
+                            )
+                          }
+                          return null
+                        }
+
+                        return (
+                          <div className="flex gap-2">
+                            {isMasterAdmin && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setConfirmData({
+                                    id: user.id,
+                                    name: user.full_name || user.email.split('@')[0],
+                                    type: 'admin',
+                                    isAdmin: false
+                                  })
+                                  setIsConfirmOpen(true)
+                                }}
+                                className="flex-1 border-purple-300 text-purple-600 hover:bg-purple-50 rounded-lg h-9 cursor-pointer"
+                              >
+                                <Shield className="w-4 h-4 mr-1" />
+                                Admin jog
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setConfirmData({
+                                  id: user.id,
+                                  name: user.full_name || user.email.split('@')[0],
+                                  type: 'reject'
+                                })
+                                setIsConfirmOpen(true)
+                              }}
+                              className="flex-1 border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg h-9 cursor-pointer"
+                            >
+                              <X className="w-4 h-4 mr-1" />
+                              Visszavon
+                            </Button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -331,6 +401,65 @@ export function AdminPanel() {
           </div>
         </>
       )}
+
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmData?.type === 'admin'
+                ? (confirmData?.isAdmin ? "Admin jog visszavonása" : "Admin jog megadása")
+                : confirmData?.type === 'approve'
+                  ? "Felhasználó jóváhagyása"
+                  : "Hozzáférés visszavonása"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmData?.type === 'admin' ? (
+                <>
+                  Biztosan {confirmData?.isAdmin ? "visszavonod" : "megadod"} az adminisztrátori jogosultságot
+                  <span className="font-semibold text-gray-900 mx-1">
+                    {confirmData?.name}
+                  </span>
+                  részére?
+                </>
+              ) : confirmData?.type === 'approve' ? (
+                <>
+                  Biztosan jóváhagyod
+                  <span className="font-semibold text-gray-900 mx-1">
+                    {confirmData?.name}
+                  </span>
+                  hozzáférését az alkalmazáshoz?
+                </>
+              ) : (
+                <>
+                  Biztosan elutasítod vagy visszavonod a hozzáférést
+                  <span className="font-semibold text-gray-900 mx-1">
+                    {confirmData?.name}
+                  </span>
+                  felhasználótól? Ezt követően nem tudja majd használni az alkalmazást.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer">Mégse</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!confirmData) return
+                if (confirmData.type === 'admin') {
+                  handleToggleAdmin(confirmData.id, confirmData.isAdmin || false)
+                } else if (confirmData.type === 'approve') {
+                  handleApprove(confirmData.id)
+                } else {
+                  handleReject(confirmData.id)
+                }
+              }}
+              className={`${confirmData?.type === 'reject' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white cursor-pointer`}
+            >
+              Mehet
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

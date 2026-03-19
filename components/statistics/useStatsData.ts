@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase } from '@/lib/supabase/client'
 import { calculatePeriodStats, PeriodStats, DayData as StatsDay } from "@/lib/stats-utils"
 
 interface DayData {
@@ -7,6 +7,13 @@ interface DayData {
     status: "volt" | "nem" | "empty"
     team?: "A" | "B"
     isHoliday?: boolean
+}
+
+interface UserStat {
+    userId: string
+    fullName: string
+    avatarUrl?: string | null
+    recordCount: number
 }
 
 interface UseStatsDataReturn {
@@ -21,15 +28,23 @@ interface UseStatsDataReturn {
     teamAYearStats: PeriodStats
     teamBYearStats: PeriodStats
     historyYears: string[]
-    rawRecords: Array<{ date: string; had_meal: boolean; team: string | null }>
+    rawRecords: Array<{ date: string; had_meal: boolean; team: string | null; recorded_by: string }>
     holidays: Array<{ date: string, name: string }>
+    allUsers: Map<string, { full_name: string | null; email: string; avatar_url?: string | null }>
+    userStats: UserStat[]
+    elapsedDaysOfYear: number
+    totalDaysOfYear: number
+    elapsedHolidaysOfYear: number
+    totalHolidaysOfYear: number
 }
 
 export function useStatsData(): UseStatsDataReturn {
     const [loading, setLoading] = useState(true)
     const [allDays, setAllDays] = useState<DayData[]>([])
-    const [rawRecords, setRawRecords] = useState<Array<{ date: string; had_meal: boolean; team: string | null }>>([])
+    const [rawRecords, setRawRecords] = useState<Array<{ date: string; had_meal: boolean; team: string | null; recorded_by: string }>>([])
     const [holidays, setHolidays] = useState<Array<{ date: string, name: string }>>([])
+    const [userStats, setUserStats] = useState<UserStat[]>([])
+    const [allUsers, setAllUsers] = useState<Map<string, { full_name: string | null; email: string; avatar_url?: string | null }>>(new Map())
 
     const today = new Date()
 
@@ -44,22 +59,7 @@ export function useStatsData(): UseStatsDataReturn {
         const fetchStatistics = async () => {
             try {
                 // Fetch full current year + previous year to cover history needs reasonably well without over-fetching initially
-                // Ideally we would fetch distinct years first, but for now let's expand the range to cover the FULL current year at least.
-                // User pointed out 120 days -> that was likely the 6mo back + 3mo forward range clipping the year.
-
                 const currentYear = today.getFullYear()
-                const startDate = new Date(currentYear, 0, 1) // Jan 1st of current year
-                const endDate = new Date(currentYear, 11, 31) // Dec 31st of current year
-
-                // If we want history to work for previous years immediately without refetching, we might want to fetch more.
-                // But for "Year Stats" (current year) to be correct (365/366), we MUST have 1 Jan - 31 Dec.
-
-                // Let's expand just a bit to be safe for near history, but correct year stats is priority.
-                // Actually, let's keep it simple: Ensure we have the FULL current year.
-                // For history of OTHER years, if the user selects them, we might rely on the fact this hook fetches 'enough' or we might need to refactor to fetch based on selected year.
-                // However, the prompt implies "Year Stats" (current year) is the issue.
-                // Let's broaden to include last year too, just in case they look back.
-
                 const fetchStart = new Date(currentYear - 1, 0, 1)
                 const fetchEnd = new Date(currentYear, 11, 31)
 
@@ -67,9 +67,9 @@ export function useStatsData(): UseStatsDataReturn {
                 const endDateStr = formatDateStr(fetchEnd)
 
                 const [recordsResult, holidaysResult] = await Promise.all([
-                    supabase.from('meal_records').select('date, had_meal, team')
+                    supabase.from('meal_records').select('date, had_meal, team, recorded_by')
                         .gte('date', startDateStr).lte('date', endDateStr)
-                        .returns<Array<{ date: string; had_meal: boolean; team: string | null }>>(),
+                        .returns<Array<{ date: string; had_meal: boolean; team: string | null; recorded_by: string }>>(),
                     supabase.from('holidays').select('date, name')
                         .gte('date', startDateStr).lte('date', endDateStr)
                 ])
@@ -82,6 +82,42 @@ export function useStatsData(): UseStatsDataReturn {
 
                 setRawRecords(records)
                 setHolidays(holidaysData)
+
+                // Filter records to CURRENT YEAR ONLY for user stats (best fillers of this year)
+                const currentYearRecords = records.filter(r => new Date(r.date).getFullYear() === currentYear)
+
+                // Fetch profiles for users in records
+                const uniqueUserIds = Array.from(new Set(records.map(r => r.recorded_by)))
+                let profiles: Array<{ id: string; full_name: string | null; email: string; avatar_url?: string | null }> = []
+                if (uniqueUserIds.length > 0) {
+                    const profilesResult = await supabase
+                        .from('profiles')
+                        .select('id, full_name, email, avatar_url')
+                        .in('id', uniqueUserIds)
+                    profiles = profilesResult.data || []
+                }
+
+                const profilesMap = new Map(profiles.map(p => [p.id, { full_name: p.full_name, email: p.email, avatar_url: p.avatar_url }]))
+                setAllUsers(profilesMap)
+
+                // Calculate User Stats for CURRENT YEAR
+                const counts = new Map<string, number>()
+                currentYearRecords.forEach(r => {
+                    counts.set(r.recorded_by, (counts.get(r.recorded_by) || 0) + 1)
+                })
+
+                const stats: UserStat[] = Array.from(new Set(currentYearRecords.map(r => r.recorded_by))).map(uid => {
+                    const profile = profilesMap.get(uid)
+                    const fullName = profile?.full_name || profile?.email?.split('@')[0] || 'Névtelen'
+                    return {
+                        userId: uid,
+                        fullName,
+                        avatarUrl: profile?.avatar_url,
+                        recordCount: counts.get(uid) || 0
+                    }
+                }).sort((a, b) => b.recordCount - a.recordCount)
+
+                setUserStats(stats)
 
                 const holidaysMap = new Map(holidaysData.map(h => [h.date, h.name]))
                 const recordsMap = new Map(records.map(r => [r.date, r]))
@@ -176,12 +212,25 @@ export function useStatsData(): UseStatsDataReturn {
         return uniqueYears.map(String)
     }, [rawRecords])
 
+    const startOfYearSnapshot = new Date(today.getFullYear(), 0, 1)
+    const endOfYearSnapshot = new Date(today.getFullYear(), 11, 31)
+
+    const elapsedDaysOfYear = Math.floor((today.getTime() - startOfYearSnapshot.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const totalDaysOfYear = Math.floor((endOfYearSnapshot.getTime() - startOfYearSnapshot.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    const currentYearHolidays = holidays.filter(h => new Date(h.date).getFullYear() === today.getFullYear())
+    const elapsedHolidaysOfYear = currentYearHolidays.filter(h => new Date(h.date) <= today).length
+    const totalHolidaysOfYear = currentYearHolidays.length
+
     return {
         loading,
         weekStats, monthStats, yearStats,
         teamAWeekStats, teamBWeekStats,
         teamAMonthStats, teamBMonthStats,
         teamAYearStats, teamBYearStats,
-        historyYears, rawRecords, holidays
+        historyYears, rawRecords, holidays,
+        allUsers, userStats,
+        elapsedDaysOfYear, totalDaysOfYear,
+        elapsedHolidaysOfYear, totalHolidaysOfYear
     }
 }

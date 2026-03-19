@@ -13,8 +13,20 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import { supabase } from "@/lib/supabase"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { supabase } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { addHolidayAction, deleteHolidayAction } from "@/app/actions/admin-actions"
+import { useTransition } from "react"
 
 interface Holiday {
     id: string
@@ -33,6 +45,8 @@ export function HolidaysManager() {
         name: "",
         description: ""
     })
+    const [isPending, startTransition] = useTransition()
+    const [confirmDelete, setConfirmDelete] = useState<{ id: string, name: string } | null>(null)
     const { toast } = useToast()
 
     const fetchHolidays = async () => {
@@ -74,59 +88,62 @@ export function HolidaysManager() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error("Not authenticated")
 
-            const { error } = await supabase
-                .from('holidays')
-                .insert({
-                    date: newHoliday.date,
-                    name: newHoliday.name,
-                    description: newHoliday.description || null,
-                    created_by: user.id
-                })
+            startTransition(async () => {
+                try {
+                    await addHolidayAction({
+                        date: newHoliday.date,
+                        name: newHoliday.name,
+                        description: newHoliday.description
+                    }, user.id)
 
-            if (error) throw error
+                    toast({
+                        title: "Sikeres hozzáadás",
+                        description: `${newHoliday.name} hozzáadva`
+                    })
 
-            toast({
-                title: "Sikeres hozzáadás",
-                description: `${newHoliday.name} hozzáadva`
+                    setNewHoliday({ date: "", name: "", description: "" })
+                    setOpen(false)
+                    fetchHolidays()
+                } catch (error) {
+                    console.error('Error adding holiday:', error)
+                    toast({
+                        title: "Hiba",
+                        description: "Nem sikerült hozzáadni a szünnapot",
+                        variant: "destructive"
+                    })
+                }
             })
-
-            setNewHoliday({ date: "", name: "", description: "" })
-            setOpen(false)
-            fetchHolidays()
         } catch (error) {
-            console.error('Error adding holiday:', error)
-            toast({
-                title: "Hiba",
-                description: "Nem sikerült hozzáadni a szünnapot",
-                variant: "destructive"
-            })
+            console.error('Error getting user:', error)
         }
     }
 
     const handleDelete = async (id: string, name: string) => {
-        if (!window.confirm(`Biztosan törölni szeretnéd: ${name}?`)) return
-
         try {
-            const { error } = await supabase
-                .from('holidays')
-                .delete()
-                .eq('id', id)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) throw new Error("Not authenticated")
 
-            if (error) throw error
+            startTransition(async () => {
+                try {
+                    await deleteHolidayAction(id, user.id)
 
-            toast({
-                title: "Törölve",
-                description: `${name} törölve`
+                    toast({
+                        title: "Törölve",
+                        description: `${name} törölve`
+                    })
+
+                    fetchHolidays()
+                } catch (error) {
+                    console.error('Error deleting holiday:', error)
+                    toast({
+                        title: "Hiba",
+                        description: "Nem sikerült törölni a szünnapot",
+                        variant: "destructive"
+                    })
+                }
             })
-
-            fetchHolidays()
         } catch (error) {
-            console.error('Error deleting holiday:', error)
-            toast({
-                title: "Hiba",
-                description: "Nem sikerült törölni a szünnapot",
-                variant: "destructive"
-            })
+            console.error('Error getting user:', error)
         }
     }
 
@@ -262,7 +279,7 @@ export function HolidaysManager() {
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleDelete(holiday.id, holiday.name)}
+                                    onClick={() => setConfirmDelete({ id: holiday.id, name: holiday.name })}
                                     className="text-rose-600 hover:bg-rose-50 rounded-lg h-9 px-3 cursor-pointer"
                                 >
                                     <Trash2 className="w-4 h-4" />
@@ -279,6 +296,26 @@ export function HolidaysManager() {
                     </div>
                 )}
             </div>
+
+            <AlertDialog open={!!confirmDelete} onOpenChange={(val) => !val && setConfirmDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Szünnap törlése</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Biztosan törölni szeretnéd a következő szünnapot: <span className="font-semibold text-gray-900">{confirmDelete?.name}</span>? Ez a művelet nem vonható vissza.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="cursor-pointer">Mégse</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => confirmDelete && handleDelete(confirmDelete.id, confirmDelete.name)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                        >
+                            Törlés
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

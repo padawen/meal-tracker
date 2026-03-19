@@ -14,7 +14,6 @@ export function GeneralSummaryCard({ stats, period }: GeneralSummaryCardProps) {
                 </p>
             </div>
             <div className="flex items-center justify-center gap-2 flex-nowrap overflow-x-auto">
-                {/* Always show kaja */}
                 <div className="flex items-center gap-1 shrink-0">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
                     <span className="text-sm font-semibold text-[#1F2937]">{stats.hadMeal}</span>
@@ -23,14 +22,12 @@ export function GeneralSummaryCard({ stats, period }: GeneralSummaryCardProps) {
 
                 <div className="h-4 w-px bg-gray-200 shrink-0"></div>
 
-                {/* Always show nincs */}
                 <div className="flex items-center gap-1 shrink-0">
                     <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
                     <span className="text-sm font-semibold text-[#1F2937]">{stats.noMeal}</span>
                     <span className="text-xs text-[#6B7280]">nincs</span>
                 </div>
 
-                {/* Only show üres if > 0 */}
                 {stats.unfilled > 0 && (
                     <>
                         <div className="h-4 w-px bg-gray-200 shrink-0"></div>
@@ -42,7 +39,6 @@ export function GeneralSummaryCard({ stats, period }: GeneralSummaryCardProps) {
                     </>
                 )}
 
-                {/* Only show szünnap if > 0 */}
                 {stats.holidays > 0 && (
                     <>
                         <div className="h-4 w-px bg-gray-200 shrink-0"></div>

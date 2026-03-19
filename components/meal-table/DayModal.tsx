@@ -31,11 +31,31 @@ interface DayModalProps {
 }
 
 export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
+  const getSuggestedTeam = (date: Date): "A" | "B" => {
+
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+
+    const isEvenWeek = weekNo % 2 === 0;
+    const day = date.getDay();
+
+    const isWeekendSide = [1, 2, 5, 6, 0].includes(day);
+
+    if (isEvenWeek) {
+      return isWeekendSide ? "B" : "A";
+    } else {
+      return isWeekendSide ? "A" : "B";
+    }
+  }
+
   const [hadFood, setHadFood] = useState<boolean | null>(
     day.status === "volt" ? true : day.status === "nem" ? false : null,
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
-  const [team, setTeam] = useState<"A" | "B" | null>(day.team || null)
+  const [team, setTeam] = useState<"A" | "B">(day.team || getSuggestedTeam(day.date))
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("hu-HU", {
@@ -60,17 +80,13 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal - Always mobile bottom sheet style */}
-      <div className="relative w-full bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
-        {/* Handle - Always visible */}
+      <div className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
           <div className="w-10 h-1 rounded-full bg-[#E5E7EB]" />
         </div>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">
           <h2 className="text-lg font-semibold text-[#1F2937]">Kaja rögzítése</h2>
           <button
@@ -81,15 +97,12 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Date */}
           <div className="text-center pb-2">
             <p className="text-sm text-[#6B7280]">Kiválasztott nap</p>
             <p className="text-xl font-semibold text-[#1F2937]">{formatDate(day.date)}</p>
           </div>
 
-          {/* Question */}
           <div className="space-y-3">
             <Label className="text-sm font-medium text-[#1F2937]">Volt személyzeti étkezés ezen a napon?</Label>
             <div className="grid grid-cols-2 gap-3">
@@ -116,7 +129,6 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             </div>
           </div>
 
-          {/* Details Input */}
           {hadFood !== null && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
               <Label htmlFor="details" className="text-sm font-medium text-[#1F2937]">
@@ -132,7 +144,6 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             </div>
           )}
 
-          {/* Team Selection */}
           {hadFood !== null && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
               <Label htmlFor="team" className="text-sm font-medium text-[#1F2937]">
@@ -150,15 +161,11 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             </div>
           )}
 
-          {/* Info Text */}
           <p className="text-xs text-[#9CA3AF] text-center">
             Egy naphoz egy bejegyzés tartozik, de később módosítható.
           </p>
         </div>
-
-        {/* Actions */}
         <div className="px-6 pb-6 pt-2 space-y-3">
-          {/* Delete button - only show if there's an existing record */}
           {day.status !== "empty" && onDelete && (
             <Button
               variant="outline"

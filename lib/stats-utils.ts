@@ -1,4 +1,3 @@
-// Utility functions for calculating statistics
 
 export interface DayData {
     date: Date
@@ -30,7 +29,6 @@ export function calculatePeriodStats(days: DayData[], today: Date): PeriodStats 
         const dayZero = new Date(day.date)
         dayZero.setHours(0, 0, 0, 0)
 
-        // Count elapsed days (only past and today, not future)
         if (dayZero <= todayZero) {
             elapsedDays++
         }

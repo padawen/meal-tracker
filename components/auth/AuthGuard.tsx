@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { Loader2 } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
 interface AuthGuardProps {
@@ -12,7 +11,6 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
     const router = useRouter()
-    // Start with checked=true if we already checked before (sessionStorage)
     const [checked, setChecked] = useState(() => {
         if (typeof window !== 'undefined') {
             return sessionStorage.getItem('auth_checked') === 'yes'
@@ -20,9 +18,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
         return false
     })
     const [user, setUser] = useState<User | null>(null)
-    const [approved, setApproved] = useState(true) // optimistic
+    const [approved, setApproved] = useState(true)
 
     useEffect(() => {
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+
         const check = async () => {
             const { data: { session } } = await supabase.auth.getSession()
 
@@ -36,13 +36,33 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
             const { data } = await supabase
                 .from('profiles')
-                .select('is_approved, is_admin')
+                .select('is_approved, is_admin, avatar_url')
                 .eq('id', session.user.id)
-                .maybeSingle<{ is_approved: boolean; is_admin: boolean }>()
+                .maybeSingle<{ is_approved: boolean; is_admin: boolean; avatar_url: string | null }>()
 
             setApproved(!!(data?.is_admin || data?.is_approved))
             sessionStorage.setItem('auth_checked', 'yes')
             setChecked(true)
+
+            const freshAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null
+            if (freshAvatar && freshAvatar !== data?.avatar_url) {
+                await supabase.from('profiles').update({ avatar_url: freshAvatar }).eq('id', session.user.id)
+            }
+            channel = supabase.channel(`public:profiles:id=eq.${session.user.id}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'profiles',
+                        filter: `id=eq.${session.user.id}`
+                    },
+                    (payload) => {
+                        const newProfile = payload.new as { is_approved: boolean; is_admin: boolean };
+                        setApproved(!!(newProfile.is_admin || newProfile.is_approved));
+                    }
+                )
+                .subscribe();
         }
 
         check()
@@ -51,21 +71,21 @@ export function AuthGuard({ children }: AuthGuardProps) {
             if (event === 'SIGNED_OUT' || !session) {
                 sessionStorage.removeItem('auth_checked')
                 setUser(null)
+                if (channel) supabase.removeChannel(channel);
                 router.push('/login')
             } else {
                 setUser(session.user)
             }
         })
 
-        return () => subscription.unsubscribe()
+        return () => {
+            subscription.unsubscribe();
+            if (channel) supabase.removeChannel(channel);
+        }
     }, [router])
 
     if (!checked) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-                <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-            </div>
-        )
+        return null
     }
 
     if (!user) return null
@@ -96,7 +116,7 @@ export function useAuth() {
 
     useEffect(() => {
         let isMounted = true;
-        
+
         const fetchSession = async () => {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
@@ -126,7 +146,6 @@ export function useAuth() {
             router.push('/login');
         } catch (err) {
             console.error('Sign out error:', err);
-            // Fallback clear
             sessionStorage.clear();
             router.push('/login');
         }

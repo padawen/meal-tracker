@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 export function useIsAdmin() {
     const [isAdmin, setIsAdmin] = useState(false)
@@ -11,7 +11,7 @@ export function useIsAdmin() {
     useEffect(() => {
         const checkAdmin = async () => {
             const { data: { session } } = await supabase.auth.getSession()
-            
+
             if (!session?.user) {
                 setLoading(false)
                 return

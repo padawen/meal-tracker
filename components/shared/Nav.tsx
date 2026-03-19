@@ -15,8 +15,8 @@ export function Nav({ label, onPrev, onNext, canPrev = true, canNext = true }: N
                 onClick={onPrev}
                 disabled={!canPrev}
                 className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${canPrev
-                        ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 cursor-pointer'
-                        : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    ? 'bg-gray-50 hover:bg-gray-100 text-gray-500 cursor-pointer'
+                    : 'bg-gray-100 text-gray-300 cursor-not-allowed'
                     }`}
                 aria-label="Előző"
             >
@@ -31,8 +31,8 @@ export function Nav({ label, onPrev, onNext, canPrev = true, canNext = true }: N
                 onClick={onNext}
                 disabled={!canNext}
                 className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${canNext
-                        ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 cursor-pointer'
-                        : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    ? 'bg-gray-50 hover:bg-gray-100 text-gray-500 cursor-pointer'
+                    : 'bg-gray-100 text-gray-300 cursor-not-allowed'
                     }`}
                 aria-label="Következő"
             >

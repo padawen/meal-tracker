@@ -17,21 +17,16 @@ export function ConfettiEffect() {
   const [particles, setParticles] = useState<Particle[]>([])
 
   useEffect(() => {
-    // Seasonal colors
     const month = new Date().getMonth()
     let colors: string[]
 
     if (month >= 2 && month <= 4) {
-      // Spring
       colors = ["#10B981", "#34D399", "#F472B6", "#FBBF24"]
     } else if (month >= 5 && month <= 7) {
-      // Summer
       colors = ["#3B82F6", "#06B6D4", "#FBBF24", "#F97316"]
     } else if (month >= 8 && month <= 10) {
-      // Autumn
       colors = ["#F97316", "#EF4444", "#FBBF24", "#92400E"]
     } else {
-      // Winter
       colors = ["#3B82F6", "#60A5FA", "#E5E7EB", "#A5B4FC"]
     }
 

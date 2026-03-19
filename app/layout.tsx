@@ -1,14 +1,28 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Outfit } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
-const _inter = Inter({ subsets: ["latin"] })
+const outfit = Outfit({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Személyzeti - Étkezés nyilvántartás",
-  description: "Belső alkalmazás a személyzeti étkezés nyilvántartásához",
+  description: "Modern és kényelmes belső alkalmazás a személyzeti étkezés rögzítéséhez és követéséhez.",
+  keywords: ["étkezés", "nyilvántartás", "személyzet", "meal tracker"],
+  authors: [{ name: "Antigravity" }],
+  openGraph: {
+    title: "Személyzeti - Étkezés nyilvántartás",
+    description: "Belső alkalmazás a személyzeti étkezés nyilvántartásához",
+    type: "website",
+    locale: "hu_HU",
+    siteName: "Étkezés nyilvántartó",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Személyzeti - Étkezés nyilvántartás",
+    description: "Belső alkalmazás a személyzeti étkezés nyilvántartásához",
+  },
   icons: {
     icon: [
       {
@@ -38,7 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="hu">
-      <body className={`font-sans antialiased`}>
+      <body className={`${outfit.className} antialiased`}>
         {children}
         <Analytics />
       </body>

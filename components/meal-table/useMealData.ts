@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { DayData, FoodStatus } from "./DayItem"
 import { calculatePeriodStats, PeriodStats } from "@/lib/stats-utils"
+import { supabase } from '@/lib/supabase/client'
 
 interface UseMealDataReturn {
     loading: boolean
@@ -28,8 +28,7 @@ export function useMealData(): UseMealDataReturn {
     const [weekOffset, setWeekOffset] = useState(0)
     const [monthOffset, setMonthOffset] = useState(0)
     const { toast } = useToast()
-    
-    // Track loaded date range
+
     const loadedRangeRef = useRef<{ start: Date; end: Date } | null>(null)
     const loadingRangeRef = useRef(false)
 
@@ -64,7 +63,6 @@ export function useMealData(): UseMealDataReturn {
         }
     }
 
-    // Fetch data for a specific date range
     const fetchDateRange = useCallback(async (startDate: Date, endDate: Date): Promise<DayData[]> => {
         const startDateStr = formatDateStr(startDate)
         const endDateStr = formatDateStr(endDate)
@@ -97,7 +95,7 @@ export function useMealData(): UseMealDataReturn {
 
         const uniqueUserIds = Array.from(new Set(records?.map(r => r.recorded_by) || []))
         let profilesMap = new Map<string, { id: string; full_name: string | null; email: string }>()
-        
+
         if (uniqueUserIds.length > 0) {
             const { data: profiles } = await supabase
                 .from('profiles')
@@ -129,9 +127,10 @@ export function useMealData(): UseMealDataReturn {
                 team = (record.team as "A" | "B") || undefined
                 const profile = profilesMap.get(record.recorded_by)
                 recordedBy = profile?.full_name || profile?.email?.split('@')[0] || 'Ismeretlen'
-                recordedAt = new Date(record.created_at).toLocaleTimeString('hu-HU', {
+                recordedAt = new Date(record.created_at).toLocaleString('hu-HU', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
                     hour: '2-digit', minute: '2-digit'
-                })
+                }).replace(/-/g, '.')
             }
 
             daysArray.push({
@@ -146,13 +145,11 @@ export function useMealData(): UseMealDataReturn {
         return daysArray
     }, [])
 
-    // Initial data load with aggressive timeout and stale session handling
     useEffect(() => {
         let isMounted = true;
         let timeoutId: NodeJS.Timeout;
 
         const fetchInitialRecords = async () => {
-            // Aggressive timeout: if no data in 3s, remove spinner anyway
             timeoutId = setTimeout(() => {
                 if (isMounted) {
                     console.warn('Initial fetch timeout - showing UI anyway');
@@ -161,7 +158,6 @@ export function useMealData(): UseMealDataReturn {
             }, 3000);
 
             try {
-                // Check if we even have a user session
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
                     if (isMounted) setLoading(false);
@@ -170,9 +166,9 @@ export function useMealData(): UseMealDataReturn {
 
                 const startDate = new Date(2026, 0, 1);
                 const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0);
-                
+
                 const daysArray = await fetchDateRange(startDate, endDate);
-                
+
                 if (isMounted) {
                     setAllRecords(daysArray);
                     loadedRangeRef.current = { start: startDate, end: endDate };
@@ -191,62 +187,49 @@ export function useMealData(): UseMealDataReturn {
         return () => { isMounted = false; clearTimeout(timeoutId); };
     }, []);
 
-    // Check if we need to load more data when navigating
     useEffect(() => {
         const checkAndLoadMoreData = async () => {
             if (!loadedRangeRef.current || loadingRangeRef.current) return
-
-            // Calculate required date range based on current view
-            // Always require +3 months ahead of viewed date
             let requiredStart: Date
             let requiredEnd: Date
 
             if (monthOffset !== 0) {
                 const targetMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
-                // Load -3 months before and +3 months after viewed month
                 requiredStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 3, 1)
                 requiredEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 4, 0)
             } else {
                 const weekStart = getWeekStart(weekOffset)
-                // Load -3 months before and +3 months after viewed week
                 requiredStart = new Date(weekStart.getFullYear(), weekStart.getMonth() - 3, 1)
                 requiredEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 4, 0)
             }
 
-            // Ensure we don't go before 2026
             const minDate = new Date(2026, 0, 1)
             if (requiredStart < minDate) requiredStart = minDate
 
             const { start: loadedStart, end: loadedEnd } = loadedRangeRef.current
 
-            // Check if required range is outside loaded range
             if (requiredStart < loadedStart || requiredEnd > loadedEnd) {
                 loadingRangeRef.current = true
 
                 try {
-                    // Expand the range to load
-                    const newStart = requiredStart < loadedStart 
+                    const newStart = requiredStart < loadedStart
                         ? new Date(requiredStart.getFullYear(), requiredStart.getMonth() - 1, 1)
                         : loadedStart
                     const newEnd = requiredEnd > loadedEnd
                         ? new Date(requiredEnd.getFullYear(), requiredEnd.getMonth() + 1, 0)
                         : loadedEnd
 
-                    // Ensure minimum date
                     if (newStart < minDate) newStart.setTime(minDate.getTime())
 
-                    // Load the missing ranges
                     let newDays: DayData[] = []
-                    
+
                     if (requiredStart < loadedStart) {
-                        // Load earlier dates
                         const fetchEnd = new Date(loadedStart)
                         fetchEnd.setDate(fetchEnd.getDate() - 1)
                         newDays = await fetchDateRange(newStart, fetchEnd)
                     }
-                    
+
                     if (requiredEnd > loadedEnd) {
-                        // Load later dates
                         const fetchStart = new Date(loadedEnd)
                         fetchStart.setDate(fetchStart.getDate() + 1)
                         const laterDays = await fetchDateRange(fetchStart, newEnd)
@@ -254,12 +237,10 @@ export function useMealData(): UseMealDataReturn {
                     }
 
                     if (newDays.length > 0) {
-                        // Merge with existing records and sort by date
                         setAllRecords(prev => {
                             const combined = [...prev, ...newDays]
                             combined.sort((a, b) => a.date.getTime() - b.date.getTime())
-                            // Remove duplicates
-                            const unique = combined.filter((day, index, arr) => 
+                            const unique = combined.filter((day, index, arr) =>
                                 index === 0 || day.date.getTime() !== arr[index - 1].date.getTime()
                             )
                             return unique
@@ -283,7 +264,6 @@ export function useMealData(): UseMealDataReturn {
         for (let i = 0; i < 7; i++) {
             const targetDate = new Date(weekStart)
             targetDate.setDate(weekStart.getDate() + i)
-            // Only include dates from 2026 onwards
             if (targetDate >= new Date(2026, 0, 1)) {
                 const found = allRecords.find(d => d.date.toDateString() === targetDate.toDateString())
                 if (found) weekDays.push(found)

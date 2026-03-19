@@ -3,7 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Updated color palette for iOS-style app */
 :root {
   --background: #f9fafb;
   --foreground: #1f2937;
@@ -120,12 +119,12 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
 }
 
-/* Added smooth transitions for iOS-like feel */
 @layer utilities {
   .transition-ios {
     transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);

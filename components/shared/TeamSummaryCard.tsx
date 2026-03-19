@@ -8,9 +8,9 @@ interface TeamSummaryCardProps {
 }
 
 export function TeamSummaryCard({ team, teamName, stats, period }: TeamSummaryCardProps) {
-    const bgColor = team === "A" ? "from-blue-50 to-white" : "from-purple-50 to-white"
-    const borderColor = team === "A" ? "border-blue-200" : "border-purple-200"
-    const textColor = team === "A" ? "text-blue-700" : "text-purple-700"
+    const bgColor = team === "A" ? "from-blue-50 to-white" : "from-pink-50 to-white"
+    const borderColor = team === "A" ? "border-blue-200" : "border-pink-200"
+    const textColor = team === "A" ? "text-blue-700" : "text-pink-700"
 
     return (
         <div className={`bg-gradient-to-br ${bgColor} rounded-xl border ${borderColor} p-4`}>
@@ -20,7 +20,6 @@ export function TeamSummaryCard({ team, teamName, stats, period }: TeamSummaryCa
             </div>
 
             <div className="flex items-center justify-center gap-4 flex-wrap">
-                {/* Always show kaja */}
                 <div className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
                     <span className="text-sm font-semibold text-[#1F2937]">{stats.hadMeal}</span>
@@ -29,7 +28,6 @@ export function TeamSummaryCard({ team, teamName, stats, period }: TeamSummaryCa
 
                 <div className="h-4 w-px bg-gray-200"></div>
 
-                {/* Always show nincs */}
                 <div className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
                     <span className="text-sm font-semibold text-[#1F2937]">{stats.noMeal}</span>

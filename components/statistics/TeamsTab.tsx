@@ -21,11 +21,11 @@ export function TeamsTab({
             <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
                 <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
                     <Users className="w-5 h-5 text-indigo-600" />
-                    Heti összesítő
+                    Éves összesítő
                 </h2>
                 <div className="space-y-4">
-                    <TeamSummaryCard team="A" teamName="Zs csapat" stats={teamAWeekStats} period="weekly" />
-                    <TeamSummaryCard team="B" teamName="R csapat" stats={teamBWeekStats} period="weekly" />
+                    <TeamSummaryCard team="A" teamName="Zs csapat" stats={teamAYearStats} period="yearly" />
+                    <TeamSummaryCard team="B" teamName="R csapat" stats={teamBYearStats} period="yearly" />
                 </div>
             </div>
 
@@ -43,11 +43,11 @@ export function TeamsTab({
             <div className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
                 <h2 className="text-base font-semibold text-[#1F2937] mb-4 flex items-center gap-2">
                     <Users className="w-5 h-5 text-indigo-600" />
-                    Éves összesítő
+                    Heti összesítő
                 </h2>
                 <div className="space-y-4">
-                    <TeamSummaryCard team="A" teamName="Zs csapat" stats={teamAYearStats} period="yearly" />
-                    <TeamSummaryCard team="B" teamName="R csapat" stats={teamBYearStats} period="yearly" />
+                    <TeamSummaryCard team="A" teamName="Zs csapat" stats={teamAWeekStats} period="weekly" />
+                    <TeamSummaryCard team="B" teamName="R csapat" stats={teamBWeekStats} period="weekly" />
                 </div>
             </div>
         </>

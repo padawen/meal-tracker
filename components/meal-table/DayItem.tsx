@@ -91,7 +91,6 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     : `${getStatusBg(day.status)} ${getTeamBorder(day.team)}`
                 } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
         >
-            {/* Top Row: Date, Status Icon, Team indicator */}
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-[#1F2937]">
@@ -121,18 +120,23 @@ export function DayItem({ day, onClick }: DayItemProps) {
                 </div>
             </div>
 
-            {/* Middle Row: Main Content (Food / Reason) */}
-            {!day.isHoliday && (day.food || day.reason) ? (
+            {!day.isHoliday && day.status !== "empty" ? (
                 <div className="w-full">
                     {day.status === "volt" && day.food && (
                         <h3 className="text-base font-bold text-gray-900 leading-tight">
                             {day.food}
                         </h3>
                     )}
-                    {day.status === "nem" && day.reason && (
-                        <p className="text-sm font-medium text-rose-700 bg-rose-100/50 px-3 py-1.5 rounded-xl inline-block">
-                            {day.reason}
-                        </p>
+                    {day.status === "nem" && (
+                        day.reason ? (
+                            <p className="text-sm font-medium text-rose-700 bg-rose-100/50 px-3 py-1.5 rounded-xl inline-block">
+                                {day.reason}
+                            </p>
+                        ) : (
+                            <p className="text-sm font-bold text-red-500 py-1.5 inline-block">
+                                Nincs indoklás
+                            </p>
+                        )
                     )}
                 </div>
             ) : day.isHoliday ? (
@@ -145,7 +149,6 @@ export function DayItem({ day, onClick }: DayItemProps) {
                 </p>
             )}
 
-            {/* Bottom Row: Metadata (Name, Time) */}
             {day.recordedBy && !day.isHoliday && (
                 <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 pt-1 border-t border-black/5 w-full">
                     <span className="truncate max-w-[150px]">{day.recordedBy}</span>

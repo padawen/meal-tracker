@@ -18,22 +18,60 @@ export async function saveMealAction(
 
     const { data: existing } = await supabase
         .from('meal_records')
-        .select('recorded_by')
+        .select(`
+            recorded_by,
+            profiles ( full_name, email )
+        `)
         .eq('date', record.date)
         .maybeSingle()
 
     if (existing && existing.recorded_by !== userId) {
-        throw new Error('Only the creator can modify this record')
+        const name = (existing.profiles as any)?.full_name || (existing.profiles as any)?.email || 'Valaki';
+        return { success: false, error: `${name} már kitöltötte` }
     }
 
-    const { error } = await supabase
+    const { data: updatedRecord, error } = await supabase
         .from('meal_records')
         .upsert({
             ...record,
             recorded_by: userId,
         }, { onConflict: 'date' })
+        .select('created_at')
+        .single()
 
-    if (error) throw error
+    if (error) {
+        return { success: false, error: 'Database error' }
+    }
+
+    revalidatePath('/')
+    return { success: true, timestamp: updatedRecord?.created_at }
+}
+
+export async function deleteMealAction(date: string, userId: string) {
+    const supabase = await createSupabaseServerClient()
+
+    const { data: existing } = await supabase
+        .from('meal_records')
+        .select('recorded_by')
+        .eq('date', date)
+        .maybeSingle()
+
+    if (!existing) {
+         return { success: false, error: 'A rekord nem található' }
+    }
+
+    if (existing.recorded_by !== userId) {
+        return { success: false, error: 'Csak a létrehozó törölheti ezt a rekordot' }
+    }
+
+    const { error } = await supabase
+        .from('meal_records')
+        .delete()
+        .eq('date', date)
+
+    if (error) {
+        return { success: false, error: 'Adatbázis hiba a törlés során' }
+    }
 
     revalidatePath('/')
     return { success: true }

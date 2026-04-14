@@ -12,7 +12,7 @@ import { ViewToggle } from "./ViewToggle"
 import { DayItem, DayData } from "./DayItem"
 import { useMealData } from "./useMealData"
 import { Loader2 } from "lucide-react"
-import { saveMealAction } from "@/app/actions/meal-actions"
+import { saveMealAction, deleteMealAction } from "@/app/actions/meal-actions"
 
 export function MealTable() {
     const [view, setView] = useState<"week" | "month">("week")
@@ -47,7 +47,7 @@ export function MealTable() {
 
         startTransition(async () => {
             try {
-                await saveMealAction({
+                const response = await saveMealAction({
                     date: dateStr,
                     had_meal: hadFood,
                     meal_name: hadFood ? details : null,
@@ -55,10 +55,23 @@ export function MealTable() {
                     team: team || null,
                 }, user.id)
 
+                if (!response.success && response.error) {
+                    toast({ title: "Figyelem", description: response.error, variant: "destructive" })
+                    return
+                }
+
                 if (hadFood) {
                     setShowConfetti(true)
                     setTimeout(() => setShowConfetti(false), 3000)
                 }
+
+                const timeStr = response.timestamp ? new Date(response.timestamp).toLocaleString('hu-HU', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                }).replace(/-/g, '.') : new Date().toLocaleString('hu-HU', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                }).replace(/-/g, '.');
 
                 const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
                 if (indexToUpdate !== -1) {
@@ -69,6 +82,9 @@ export function MealTable() {
                         food: hadFood ? details : undefined,
                         reason: !hadFood ? details : undefined,
                         team: team,
+                        recordedBy: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Ismeretlen',
+                        recordedByUserId: user.id,
+                        recordedAt: timeStr
                     }
                     setAllRecords(updatedRecords)
                 }
@@ -78,6 +94,45 @@ export function MealTable() {
             } catch (error) {
                 console.error('Error saving meal record:', error)
                 toast({ title: "Hiba", description: "Nem sikerült menteni az adatokat", variant: "destructive" })
+            }
+        })
+    }
+
+    const handleDelete = async (dayData: DayData) => {
+        if (!user) return
+
+        const dateStr = formatDateStr(dayData.date)
+
+        startTransition(async () => {
+            try {
+                const response = await deleteMealAction(dateStr, user.id)
+
+                if (!response.success && response.error) {
+                    toast({ title: "Figyelem", description: response.error, variant: "destructive" })
+                    return
+                }
+
+                const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
+                if (indexToUpdate !== -1) {
+                    const updatedRecords = [...allRecords]
+                    updatedRecords[indexToUpdate] = {
+                        ...updatedRecords[indexToUpdate],
+                        status: "empty",
+                        food: undefined,
+                        reason: undefined,
+                        team: undefined,
+                        recordedBy: undefined,
+                        recordedByUserId: undefined,
+                        recordedAt: undefined
+                    }
+                    setAllRecords(updatedRecords)
+                }
+
+                toast({ title: "Törölve", description: "A rekord sikeresen törölve lett." })
+                setSelectedDay(null)
+            } catch (error) {
+                console.error('Error deleting meal record:', error)
+                toast({ title: "Hiba", description: "Nem sikerült törölni a rekordot", variant: "destructive" })
             }
         })
     }
@@ -259,7 +314,7 @@ export function MealTable() {
                 ))}
             </div>
 
-            {selectedDay && <DayModal day={selectedDay} onClose={() => setSelectedDay(null)} onSave={handleSave} />}
+            {selectedDay && <DayModal day={selectedDay} onClose={() => setSelectedDay(null)} onSave={handleSave} onDelete={handleDelete} />}
         </div>
     )
 }

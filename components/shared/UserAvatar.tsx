@@ -18,6 +18,8 @@ function getAvatarColor(name: string): { bg: string; text: string } {
     return colors[Math.abs(hash)]
 }
 
+import { useState } from "react"
+
 interface UserAvatarProps {
     avatarUrl?: string | null
     name: string
@@ -31,14 +33,21 @@ const sizeMap = {
 }
 
 export function UserAvatar({ avatarUrl, name, size = "md" }: UserAvatarProps) {
+    const [imgError, setImgError] = useState(false)
     const sizeClass = sizeMap[size]
     const initial = (name || "?").charAt(0).toUpperCase()
     const { bg, text } = getAvatarColor(name || "?")
 
     return (
         <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center font-semibold`}>
-            {avatarUrl ? (
-                <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+            {avatarUrl && !imgError ? (
+                <img 
+                    src={avatarUrl} 
+                    alt={name} 
+                    className="w-full h-full object-cover" 
+                    referrerPolicy="no-referrer" 
+                    onError={() => setImgError(true)} 
+                />
             ) : (
                 <div className={`w-full h-full flex items-center justify-center ${bg} ${text}`}>
                     {initial}

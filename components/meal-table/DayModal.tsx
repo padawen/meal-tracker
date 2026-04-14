@@ -62,6 +62,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
   const [team, setTeam] = useState<"A" | "B">(day.team || getSuggestedTeam(day.date))
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("hu-HU", {
@@ -77,11 +78,9 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
     }
   }
 
-  const handleDelete = () => {
-    if (window.confirm('Biztosan törölni szeretnéd ezt a rekordot?')) {
-      onDelete?.(day)
-      onClose()
-    }
+  const handleDeleteConfirm = () => {
+    onDelete?.(day)
+    onClose()
   }
 
   return (
@@ -180,7 +179,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
           )}
 
           <p className="text-xs text-[#9CA3AF] text-center">
-            Egy naphoz egy bejegyzés tartozik {canEdit && ", de később módosítható"}.
+            Egy naphoz egy bejegyzés tartozik.
           </p>
         </div>
         <div className="px-6 pb-6 pt-2 space-y-3">
@@ -202,6 +201,37 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               </Button>
             )}
           </div>
+          {canEdit && day.status !== "empty" && (
+            isDeleting ? (
+              <div className="space-y-3 p-4 bg-rose-50/50 rounded-xl border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
+                <p className="text-sm text-center text-rose-800 font-medium">Biztosan törölni szeretnéd a bejegyzést?</p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDeleting(false)}
+                    className="flex-1 h-10 rounded-lg border-rose-200 text-rose-700 hover:bg-rose-100 bg-transparent cursor-pointer"
+                  >
+                    Mégse
+                  </Button>
+                  <Button
+                    onClick={handleDeleteConfirm}
+                    className="flex-1 h-10 rounded-lg bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                  >
+                    Végleges törlés
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleting(true)}
+                className="w-full h-12 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 bg-transparent cursor-pointer flex items-center justify-center gap-2 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Törlés
+              </Button>
+            )
+          )}
         </div>
       </div>
     </div >

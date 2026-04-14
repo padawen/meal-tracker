@@ -260,6 +260,38 @@ export function useMealData(): UseMealDataReturn {
         checkAndLoadMoreData()
     }, [weekOffset, monthOffset])
 
+    useEffect(() => {
+        const channel = supabase.channel('meal_records_changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_records' }, async (payload) => {
+                const dateStr = payload.new ? (payload.new as any).date : (payload.old as any)?.date;
+                if (!dateStr) return;
+                
+                const [year, month, day] = dateStr.split('-');
+                const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                
+                try {
+                    const newData = await fetchDateRange(d, d);
+                    
+                    if (newData && newData.length > 0) {
+                        setAllRecords(prev => {
+                            const idx = prev.findIndex(r => formatDateStr(r.date) === dateStr);
+                            if (idx !== -1) {
+                                const copy = [...prev];
+                                copy[idx] = newData[0];
+                                return copy;
+                            }
+                            return prev;
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error fetching realtime update:', error);
+                }
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, [fetchDateRange])
+
     const currentWeekDays = useMemo(() => {
         const weekStart = getWeekStart(weekOffset)
         const weekDays: DayData[] = []

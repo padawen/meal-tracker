@@ -1,24 +1,22 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Calendar, AlertCircle, ArrowLeft, ArrowRight } from "lucide-react"
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
 import { DayModal } from "./DayModal"
 import { ConfettiEffect } from "./ConfettiEffect"
+import { MealOverviewCards } from "./MealOverviewCards"
+import { useMealTableMutations } from "./useMealTableMutations"
 import { useAuth } from "@/components/auth/AuthGuard"
 import { useToast } from "@/hooks/use-toast"
-import { Header, Nav, PeriodStatsCard } from "@/components/shared"
+import { Nav } from "@/components/shared"
 import { ViewToggle } from "./ViewToggle"
 import { DayItem, DayData } from "./DayItem"
 import { useMealData } from "./useMealData"
-import { Loader2 } from "lucide-react"
-import { saveMealAction, deleteMealAction } from "@/app/actions/meal-actions"
 
 export function MealTable() {
     const [view, setView] = useState<"week" | "month">("week")
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
-    const [showConfetti, setShowConfetti] = useState(false)
-    const [isPending, startTransition] = useTransition()
     const { user } = useAuth()
     const router = useRouter()
     const { toast } = useToast()
@@ -32,110 +30,15 @@ export function MealTable() {
     } = useMealData()
 
     const today = new Date()
-
-    const getEmptyEmoji = () => {
-        if (totalEmptyDays === 0) return "😊"
-        if (totalEmptyDays === 1) return "😕"
-        if (totalEmptyDays === 2) return "😟"
-        return "😢"
-    }
-
-    const handleSave = async (dayData: DayData, hadFood: boolean, details: string, team?: "A" | "B") => {
-        if (!user) return
-
-        const dateStr = formatDateStr(dayData.date)
-
-        startTransition(async () => {
-            try {
-                const response = await saveMealAction({
-                    date: dateStr,
-                    had_meal: hadFood,
-                    meal_name: hadFood ? details : null,
-                    reason: !hadFood ? details : null,
-                    team: team || null,
-                }, user.id)
-
-                if (!response.success && response.error) {
-                    toast({ title: "Figyelem", description: response.error, variant: "destructive" })
-                    return
-                }
-
-                if (hadFood) {
-                    setShowConfetti(true)
-                    setTimeout(() => setShowConfetti(false), 3000)
-                }
-
-                const timeStr = response.timestamp ? new Date(response.timestamp).toLocaleString('hu-HU', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit'
-                }).replace(/-/g, '.') : new Date().toLocaleString('hu-HU', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit'
-                }).replace(/-/g, '.');
-
-                const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
-                if (indexToUpdate !== -1) {
-                    const updatedRecords = [...allRecords]
-                    updatedRecords[indexToUpdate] = {
-                        ...updatedRecords[indexToUpdate],
-                        status: hadFood ? "volt" : "nem",
-                        food: hadFood ? details : undefined,
-                        reason: !hadFood ? details : undefined,
-                        team: team,
-                        recordedBy: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Ismeretlen',
-                        recordedByUserId: user.id,
-                        recordedAt: timeStr
-                    }
-                    setAllRecords(updatedRecords)
-                }
-
-                toast({ title: "Sikeres mentés", description: "Frissítve" })
-                setSelectedDay(null)
-            } catch (error) {
-                console.error('Error saving meal record:', error)
-                toast({ title: "Hiba", description: "Nem sikerült menteni az adatokat", variant: "destructive" })
-            }
-        })
-    }
-
-    const handleDelete = async (dayData: DayData) => {
-        if (!user) return
-
-        const dateStr = formatDateStr(dayData.date)
-
-        startTransition(async () => {
-            try {
-                const response = await deleteMealAction(dateStr, user.id)
-
-                if (!response.success && response.error) {
-                    toast({ title: "Figyelem", description: response.error, variant: "destructive" })
-                    return
-                }
-
-                const indexToUpdate = allRecords.findIndex(d => formatDateStr(d.date) === dateStr)
-                if (indexToUpdate !== -1) {
-                    const updatedRecords = [...allRecords]
-                    updatedRecords[indexToUpdate] = {
-                        ...updatedRecords[indexToUpdate],
-                        status: "empty",
-                        food: undefined,
-                        reason: undefined,
-                        team: undefined,
-                        recordedBy: undefined,
-                        recordedByUserId: undefined,
-                        recordedAt: undefined
-                    }
-                    setAllRecords(updatedRecords)
-                }
-
-                toast({ title: "Törölve", description: "A rekord sikeresen törölve lett." })
-                setSelectedDay(null)
-            } catch (error) {
-                console.error('Error deleting meal record:', error)
-                toast({ title: "Hiba", description: "Nem sikerült törölni a rekordot", variant: "destructive" })
-            }
-        })
-    }
+    const { confettiVariant, handleDelete, handleSave, pendingAction } = useMealTableMutations({
+        allRecords,
+        currentUserName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Ismeretlen',
+        formatDateStr,
+        setAllRecords,
+        setSelectedDay,
+        toast,
+        userId: user.id,
+    })
 
 
     const handleDayClick = (day: DayData) => {
@@ -204,7 +107,6 @@ export function MealTable() {
                 <p className="text-sm text-gray-500 animate-pulse">Adatok betöltése...</p>
                 <button
                     onClick={() => {
-                        sessionStorage.removeItem('auth_checked');
                         router.refresh();
                     }}
                     className="text-xs text-indigo-500 hover:text-indigo-700 underline cursor-pointer"
@@ -217,61 +119,15 @@ export function MealTable() {
 
     return (
         <div className="space-y-4">
-            {showConfetti && <ConfettiEffect />}
+            {confettiVariant && <ConfettiEffect variant={confettiVariant} />}
 
-
-
-            <div className="grid grid-cols-1 gap-3">
-                <PeriodStatsCard
-                    title="Ez a hét"
-                    stats={weekStats}
-                    icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-                    iconBgColor="bg-emerald-100"
-                />
-                <PeriodStatsCard
-                    title="Ez a hónap"
-                    stats={monthStats}
-                    icon={<Calendar className="w-5 h-5 text-indigo-600" />}
-                    iconBgColor="bg-indigo-100"
-                />
-                <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${totalEmptyDays === 0 ? "bg-emerald-100" : "bg-amber-100"}`}>
-                            {totalEmptyDays === 0 ? (
-                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                            ) : (
-                                <AlertCircle className="w-5 h-5 text-amber-600" />
-                            )}
-                        </div>
-                        <div className="flex-1">
-                            {totalEmptyDays === 0 ? (
-                                <>
-                                    <p className="text-xs text-[#6B7280] font-medium">Gratulálunk!</p>
-                                    <p className="text-lg font-semibold text-[#1F2937]">Minden kitöltve!</p>
-                                </>
-                            ) : totalEmptyDays === 1 && allRecords.find(d =>
-                                d.date.getDate() === today.getDate() &&
-                                d.date.getMonth() === today.getMonth() &&
-                                d.date.getFullYear() === today.getFullYear() &&
-                                d.status === "empty" && !d.isHoliday
-                            ) ? (
-                                <>
-                                    <p className="text-xs text-[#6B7280] font-medium">Már csak egy!</p>
-                                    <p className="text-lg font-semibold text-[#1F2937]">Csak a mai hiányzik!</p>
-                                </>
-                            ) : (
-                                <>
-                                    <p className="text-xs text-[#6B7280] font-medium">Kitöltetlen</p>
-                                    <p className="text-lg font-semibold text-[#1F2937]">{totalEmptyDays} nap</p>
-                                </>
-                            )}
-                        </div>
-                        <div className="text-2xl">
-                            {totalEmptyDays === 0 ? "🥳" : getEmptyEmoji()}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <MealOverviewCards
+                allRecords={allRecords}
+                monthStats={monthStats}
+                today={today}
+                totalEmptyDays={totalEmptyDays}
+                weekStats={weekStats}
+            />
 
             <ViewToggle view={view} onViewChange={handleViewChange} />
 
@@ -314,7 +170,16 @@ export function MealTable() {
                 ))}
             </div>
 
-            {selectedDay && <DayModal day={selectedDay} onClose={() => setSelectedDay(null)} onSave={handleSave} onDelete={handleDelete} />}
+            {selectedDay && (
+                <DayModal
+                    day={selectedDay}
+                    onClose={() => setSelectedDay(null)}
+                    onSave={handleSave}
+                    onDelete={handleDelete}
+                    isSaving={pendingAction === "save"}
+                    isDeletePending={pendingAction === "delete"}
+                />
+            )}
         </div>
     )
 }

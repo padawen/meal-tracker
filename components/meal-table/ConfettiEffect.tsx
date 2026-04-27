@@ -6,19 +6,25 @@ interface Particle {
   id: number
   x: number
   y: number
-  color: string
+  color?: string
+  emoji?: string
   rotation: number
   scale: number
   velocityX: number
   velocityY: number
 }
 
-export function ConfettiEffect() {
+interface ConfettiEffectProps {
+  variant?: "celebration" | "sad"
+}
+
+export function ConfettiEffect({ variant = "celebration" }: ConfettiEffectProps) {
   const [particles, setParticles] = useState<Particle[]>([])
 
   useEffect(() => {
     const month = new Date().getMonth()
     let colors: string[]
+    const sadEmojis = ["😢", "😭", "🥺", "☹️", "😞"]
 
     if (month >= 2 && month <= 4) {
       colors = ["#10B981", "#34D399", "#F472B6", "#FBBF24"]
@@ -36,7 +42,8 @@ export function ConfettiEffect() {
         id: i,
         x: Math.random() * 100,
         y: -10 - Math.random() * 20,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: variant === "celebration" ? colors[Math.floor(Math.random() * colors.length)] : undefined,
+        emoji: variant === "sad" ? sadEmojis[Math.floor(Math.random() * sadEmojis.length)] : undefined,
         rotation: Math.random() * 360,
         scale: 0.5 + Math.random() * 0.5,
         velocityX: (Math.random() - 0.5) * 2,
@@ -44,14 +51,14 @@ export function ConfettiEffect() {
       })
     }
     setParticles(newParticles)
-  }, [])
+  }, [variant])
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
       {particles.map((particle) => (
         <div
           key={particle.id}
-          className="absolute w-3 h-3 rounded-sm animate-confetti"
+          className={variant === "celebration" ? "absolute w-3 h-3 rounded-sm animate-confetti" : "absolute animate-confetti text-2xl leading-none"}
           style={{
             left: `${particle.x}%`,
             backgroundColor: particle.color,
@@ -59,7 +66,9 @@ export function ConfettiEffect() {
             animationDelay: `${particle.id * 20}ms`,
             animationDuration: `${2000 + Math.random() * 1000}ms`,
           }}
-        />
+        >
+          {particle.emoji}
+        </div>
       ))}
       <style jsx>{`
         @keyframes confetti {

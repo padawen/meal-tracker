@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getAuthenticatedServerUser } from '@/lib/auth/server'
 
 export async function saveMealAction(
     record: {
@@ -11,10 +11,9 @@ export async function saveMealAction(
         meal_name: string | null
         reason: string | null
         team: "A" | "B" | null
-    },
-    userId: string
+    }
 ) {
-    const supabase = await createSupabaseServerClient()
+    const { supabase, user } = await getAuthenticatedServerUser()
 
     const { data: existing } = await supabase
         .from('meal_records')
@@ -25,7 +24,7 @@ export async function saveMealAction(
         .eq('date', record.date)
         .maybeSingle()
 
-    if (existing && existing.recorded_by !== userId) {
+    if (existing && existing.recorded_by !== user.id) {
         const name = (existing.profiles as any)?.full_name || (existing.profiles as any)?.email || 'Valaki';
         return { success: false, error: `${name} már kitöltötte` }
     }
@@ -34,21 +33,25 @@ export async function saveMealAction(
         .from('meal_records')
         .upsert({
             ...record,
-            recorded_by: userId,
+            recorded_by: user.id,
         }, { onConflict: 'date' })
         .select('created_at')
         .single()
 
     if (error) {
-        return { success: false, error: 'Database error' }
+        if (error.message?.includes('row-level security policy')) {
+            return { success: false, error: 'Az adatbázis még a régi dátumszabályt használja. Futtasd le a legfrissebb migrációt.' }
+        }
+
+        return { success: false, error: error.message || 'Database error' }
     }
 
     revalidatePath('/')
     return { success: true, timestamp: updatedRecord?.created_at }
 }
 
-export async function deleteMealAction(date: string, userId: string) {
-    const supabase = await createSupabaseServerClient()
+export async function deleteMealAction(date: string) {
+    const { supabase, user } = await getAuthenticatedServerUser()
 
     const { data: existing } = await supabase
         .from('meal_records')
@@ -60,7 +63,7 @@ export async function deleteMealAction(date: string, userId: string) {
          return { success: false, error: 'A rekord nem található' }
     }
 
-    if (existing.recorded_by !== userId) {
+    if (existing.recorded_by !== user.id) {
         return { success: false, error: 'Csak a létrehozó törölheti ezt a rekordot' }
     }
 

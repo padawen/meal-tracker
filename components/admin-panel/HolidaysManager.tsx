@@ -84,67 +84,53 @@ export function HolidaysManager() {
             return
         }
 
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) throw new Error("Not authenticated")
+        startTransition(async () => {
+            try {
+                await addHolidayAction({
+                    date: newHoliday.date,
+                    name: newHoliday.name,
+                    description: newHoliday.description
+                })
 
-            startTransition(async () => {
-                try {
-                    await addHolidayAction({
-                        date: newHoliday.date,
-                        name: newHoliday.name,
-                        description: newHoliday.description
-                    }, user.id)
+                toast({
+                    title: "Sikeres hozzáadás",
+                    description: `${newHoliday.name} hozzáadva`
+                })
 
-                    toast({
-                        title: "Sikeres hozzáadás",
-                        description: `${newHoliday.name} hozzáadva`
-                    })
-
-                    setNewHoliday({ date: "", name: "", description: "" })
-                    setOpen(false)
-                    fetchHolidays()
-                } catch (error) {
-                    console.error('Error adding holiday:', error)
-                    toast({
-                        title: "Hiba",
-                        description: "Nem sikerült hozzáadni a szünnapot",
-                        variant: "destructive"
-                    })
-                }
-            })
-        } catch (error) {
-            console.error('Error getting user:', error)
-        }
+                setNewHoliday({ date: "", name: "", description: "" })
+                setOpen(false)
+                fetchHolidays()
+            } catch (error) {
+                console.error('Error adding holiday:', error)
+                toast({
+                    title: "Hiba",
+                    description: "Nem sikerült hozzáadni a szünnapot",
+                    variant: "destructive"
+                })
+            }
+        })
     }
 
     const handleDelete = async (id: string, name: string) => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) throw new Error("Not authenticated")
+        startTransition(async () => {
+            try {
+                await deleteHolidayAction(id)
 
-            startTransition(async () => {
-                try {
-                    await deleteHolidayAction(id, user.id)
+                toast({
+                    title: "Törölve",
+                    description: `${name} törölve`
+                })
 
-                    toast({
-                        title: "Törölve",
-                        description: `${name} törölve`
-                    })
-
-                    fetchHolidays()
-                } catch (error) {
-                    console.error('Error deleting holiday:', error)
-                    toast({
-                        title: "Hiba",
-                        description: "Nem sikerült törölni a szünnapot",
-                        variant: "destructive"
-                    })
-                }
-            })
-        } catch (error) {
-            console.error('Error getting user:', error)
-        }
+                fetchHolidays()
+            } catch (error) {
+                console.error('Error deleting holiday:', error)
+                toast({
+                    title: "Hiba",
+                    description: "Nem sikerült törölni a szünnapot",
+                    variant: "destructive"
+                })
+            }
+        })
     }
 
     const formatDate = (dateStr: string) => {

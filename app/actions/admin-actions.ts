@@ -2,13 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { isMasterAdmin, requireAdminViewer, requireMasterAdminViewer } from '@/lib/auth/server'
 
-const MASTER_ADMIN_IDS = process.env.NEXT_PUBLIC_MASTER_ADMIN_IDS?.split(',').map(id => id.trim()) || []
-
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>
-
-async function getAdminStatus(client: SupabaseServerClient, userId: string) {
+async function getAdminStatus(
+    client: Awaited<ReturnType<typeof requireAdminViewer>>['supabase'],
+    userId: string
+) {
     const { data: profile } = await client
         .from('profiles')
         .select('is_admin, full_name')
@@ -17,15 +16,12 @@ async function getAdminStatus(client: SupabaseServerClient, userId: string) {
 
     return {
         isAdmin: profile?.is_admin || false,
-        isMaster: MASTER_ADMIN_IDS.includes(userId)
+        isMaster: isMasterAdmin(userId)
     }
 }
 
-export async function approveUserAction(targetUserId: string, requesterId: string) {
-    const supabase = await createSupabaseServerClient()
-
-    const { isAdmin } = await getAdminStatus(supabase, requesterId)
-    if (!isAdmin) throw new Error('Unauthorized')
+export async function approveUserAction(targetUserId: string) {
+    const { supabase } = await requireAdminViewer()
 
     const { error } = await supabase
         .from('profiles')
@@ -37,11 +33,8 @@ export async function approveUserAction(targetUserId: string, requesterId: strin
     return { success: true }
 }
 
-export async function rejectUserAction(targetUserId: string, requesterId: string) {
-    const supabase = await createSupabaseServerClient()
-
-    const { isAdmin, isMaster: isRequesterMaster } = await getAdminStatus(supabase, requesterId)
-    if (!isAdmin) throw new Error('Unauthorized')
+export async function rejectUserAction(targetUserId: string) {
+    const { supabase, isMasterAdmin: isRequesterMaster } = await requireAdminViewer()
 
     const { isAdmin: targetIsAdmin, isMaster: targetIsMaster } = await getAdminStatus(supabase, targetUserId)
 
@@ -59,11 +52,8 @@ export async function rejectUserAction(targetUserId: string, requesterId: string
     return { success: true }
 }
 
-export async function toggleAdminAction(targetUserId: string, targetCurrentIsAdmin: boolean, requesterId: string) {
-    const supabase = await createSupabaseServerClient()
-
-    const { isMaster } = await getAdminStatus(supabase, requesterId)
-    if (!isMaster) throw new Error('Only Master Admin can toggle admin roles')
+export async function toggleAdminAction(targetUserId: string, targetCurrentIsAdmin: boolean) {
+    const { supabase } = await requireMasterAdminViewer()
 
     const { isMaster: targetIsMaster } = await getAdminStatus(supabase, targetUserId)
     if (targetIsMaster) throw new Error('Cannot modify Master Admin permissions')
@@ -78,11 +68,8 @@ export async function toggleAdminAction(targetUserId: string, targetCurrentIsAdm
     return { success: true }
 }
 
-export async function addHolidayAction(holiday: { date: string, name: string, description?: string | null }, requesterId: string) {
-    const supabase = await createSupabaseServerClient()
-
-    const { isAdmin } = await getAdminStatus(supabase, requesterId)
-    if (!isAdmin) throw new Error('Unauthorized')
+export async function addHolidayAction(holiday: { date: string, name: string, description?: string | null }) {
+    const { supabase, user } = await requireAdminViewer()
 
     const { error } = await supabase
         .from('holidays')
@@ -90,7 +77,7 @@ export async function addHolidayAction(holiday: { date: string, name: string, de
             date: holiday.date,
             name: holiday.name,
             description: holiday.description || null,
-            created_by: requesterId
+            created_by: user.id
         })
 
     if (error) throw error
@@ -98,11 +85,8 @@ export async function addHolidayAction(holiday: { date: string, name: string, de
     return { success: true }
 }
 
-export async function deleteHolidayAction(holidayId: string, requesterId: string) {
-    const supabase = await createSupabaseServerClient()
-
-    const { isAdmin } = await getAdminStatus(supabase, requesterId)
-    if (!isAdmin) throw new Error('Unauthorized')
+export async function deleteHolidayAction(holidayId: string) {
+    const { supabase } = await requireAdminViewer()
 
     const { error } = await supabase
         .from('holidays')
@@ -113,4 +97,3 @@ export async function deleteHolidayAction(holidayId: string, requesterId: string
     revalidatePath('/')
     return { success: true }
 }
-

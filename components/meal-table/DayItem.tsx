@@ -1,19 +1,7 @@
 import { CheckCircle2, XCircle, AlertCircle, Check, X, Minus } from "lucide-react"
+import type { FoodStatus, MealDayData as DayData } from "@/lib/meal-domain"
 
-export type FoodStatus = "volt" | "nem" | "empty"
-
-export interface DayData {
-    date: Date
-    status: FoodStatus
-    food?: string
-    reason?: string
-    recordedBy?: string
-    recordedByUserId?: string
-    recordedAt?: string
-    team?: "A" | "B"
-    isHoliday?: boolean
-    holidayName?: string
-}
+export type { FoodStatus, MealDayData as DayData } from "@/lib/meal-domain"
 
 interface DayItemProps {
     day: DayData
@@ -129,11 +117,11 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     )}
                     {day.status === "nem" && (
                         day.reason ? (
-                            <p className="text-sm font-medium text-rose-700 bg-rose-100/50 px-3 py-1.5 rounded-xl inline-block">
+                            <p className="text-base font-bold text-rose-600 leading-tight">
                                 {day.reason}
                             </p>
                         ) : (
-                            <p className="text-sm font-bold text-red-500 py-1.5 inline-block">
+                            <p className="text-base font-bold text-rose-500 leading-tight">
                                 Nincs indoklás
                             </p>
                         )

@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { UtensilsCrossed, LogOut, Settings } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { UserAvatar, TabNavigation } from "@/components/shared"
 import { useAuth } from "@/components/auth/AuthGuard"
-import { supabase } from '@/lib/supabase/client'
 
 import {
   DropdownMenu,
@@ -22,29 +21,16 @@ import { updateProfileAction } from "@/app/actions/user-actions"
 
 interface TopBarProps {
   currentPage: "kaja" | "stats" | "admin"
-  onPageChange: (page: "kaja" | "stats" | "admin") => void
   isAdmin: boolean
 }
 
-export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
-  const { user, signOut } = useAuth()
+export function TopBar({ currentPage, isAdmin }: TopBarProps) {
+  const { user, profile, refreshProfile, signOut } = useAuth()
   const router = useRouter()
 
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [dbName, setDbName] = useState<string | null>(null)
   const [nicknameInput, setNicknameInput] = useState("")
   const [isPending, startTransition] = useTransition()
-
-
-  useEffect(() => {
-    if (user?.id) {
-      supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle().then(({ data }) => {
-        if (data?.full_name) {
-          setDbName(data.full_name)
-        }
-      })
-    }
-  }, [user?.id])
 
   const handleSaveProfile = async () => {
     if (!user) return
@@ -58,8 +44,8 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
 
     startTransition(async () => {
       try {
-        await updateProfileAction(finalValue, user.id)
-        setDbName(finalValue)
+        await updateProfileAction(finalValue)
+        await refreshProfile()
         setIsProfileOpen(false)
       } catch (error) {
         console.error('Error updating profile:', error)
@@ -68,21 +54,29 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
   }
 
   const openProfileSettings = () => {
-    setNicknameInput(dbName || "")
+    setNicknameInput(profile.full_name || "")
     setIsProfileOpen(true)
-  }
-
-  const pageTitle = {
-    kaja: "Kaja tábla",
-    stats: "Statisztika",
-    admin: "Admin",
   }
 
   const firstGoogleName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Felhasználó'
 
-  const displayFirstName = dbName ? dbName.split(' ')[0] : firstGoogleName
-  const displayFullName = dbName || user?.user_metadata?.full_name || firstGoogleName
-  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
+  const displayFirstName = profile.full_name ? profile.full_name.split(' ')[0] : firstGoogleName
+  const displayFullName = profile.full_name || user?.user_metadata?.full_name || firstGoogleName
+  const avatarUrl = profile.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture
+
+  const handleTabChange = (page: "kaja" | "stats" | "admin") => {
+    if (page === "kaja") {
+      router.push("/")
+      return
+    }
+
+    if (page === "stats") {
+      router.push("/statistics")
+      return
+    }
+
+    router.push("/admin")
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-[#E5E7EB]">
@@ -91,7 +85,6 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
           <div
             className="flex items-center gap-3 cursor-pointer select-none"
             onClick={() => {
-              sessionStorage.removeItem('auth_checked');
               router.push('/');
             }}
           >
@@ -139,7 +132,7 @@ export function TopBar({ currentPage, onPageChange, isAdmin }: TopBarProps) {
               ...(isAdmin ? [{ key: "admin" as const, label: "Admin" }] : []),
             ]}
             activeTab={currentPage}
-            onTabChange={onPageChange}
+            onTabChange={handleTabChange}
             size="sm"
           />
         </div>

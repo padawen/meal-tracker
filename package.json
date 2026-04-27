@@ -6,7 +6,11 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "start": "next start"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

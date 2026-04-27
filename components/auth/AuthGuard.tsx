@@ -1,155 +1,48 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import React, { createContext, useContext } from 'react'
+
+import { AuthLoadingScreen } from '@/components/auth/AuthLoadingScreen'
+import type { AuthContextValue } from '@/components/auth/types'
+import { useAuthSessionProfile } from '@/components/auth/useAuthSessionProfile'
 
 interface AuthGuardProps {
     children: React.ReactNode
 }
 
+const AuthContext = createContext<AuthContextValue | null>(null)
+
 export function AuthGuard({ children }: AuthGuardProps) {
-    const router = useRouter()
-    const [checked, setChecked] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return sessionStorage.getItem('auth_checked') === 'yes'
-        }
-        return false
-    })
-    const [user, setUser] = useState<User | null>(null)
-    const [approved, setApproved] = useState(true)
+    const { loading, profile, refreshProfile, signOut, user } = useAuthSessionProfile()
 
-    useEffect(() => {
-        let channel: ReturnType<typeof supabase.channel> | null = null;
-
-        const check = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
-
-            if (!session) {
-                sessionStorage.removeItem('auth_checked')
-                router.push('/login')
-                return
-            }
-
-            setUser(session.user)
-
-            const { data } = await supabase
-                .from('profiles')
-                .select('is_approved, is_admin, avatar_url')
-                .eq('id', session.user.id)
-                .maybeSingle<{ is_approved: boolean; is_admin: boolean; avatar_url: string | null }>()
-
-            setApproved(!!(data?.is_admin || data?.is_approved))
-            sessionStorage.setItem('auth_checked', 'yes')
-            setChecked(true)
-
-            const freshAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null
-            if (freshAvatar && freshAvatar !== data?.avatar_url) {
-                await supabase.from('profiles').update({ avatar_url: freshAvatar }).eq('id', session.user.id)
-            }
-            channel = supabase.channel(`public:profiles:id=eq.${session.user.id}`)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'UPDATE',
-                        schema: 'public',
-                        table: 'profiles',
-                        filter: `id=eq.${session.user.id}`
-                    },
-                    (payload) => {
-                        const newProfile = payload.new as { is_approved: boolean; is_admin: boolean };
-                        setApproved(!!(newProfile.is_admin || newProfile.is_approved));
-                    }
-                )
-                .subscribe();
-        }
-
-        check()
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_OUT' || !session) {
-                sessionStorage.removeItem('auth_checked')
-                setUser(null)
-                if (channel) supabase.removeChannel(channel);
-                router.push('/login')
-            } else {
-                setUser(session.user)
-            }
-        })
-
-        return () => {
-            subscription.unsubscribe();
-            if (channel) supabase.removeChannel(channel);
-        }
-    }, [router])
-
-    if (!checked) {
-        return null
+    if (loading) {
+        return <AuthLoadingScreen />
     }
 
-    if (!user) return null
+    if (!user || !profile) return null
 
-    if (!approved) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-8 text-center space-y-4 max-w-md">
-                    <h2 className="text-xl font-bold">Jóváhagyásra vár</h2>
-                    <p className="text-gray-600 text-sm">Egy adminnak jóvá kell hagynia a hozzáférést.</p>
-                    <button
-                        onClick={() => supabase.auth.signOut().then(() => router.push('/login'))}
-                        className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 cursor-pointer"
-                    >
-                        Kijelentkezés
-                    </button>
-                </div>
-            </div>
-        )
+    const isAdmin = profile.is_admin
+    const isApproved = profile.is_admin || profile.is_approved
+
+    const value: AuthContextValue = {
+        user,
+        profile,
+        isAdmin,
+        isApproved,
+        loading,
+        refreshProfile,
+        signOut,
     }
 
-    return <>{children}</>
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
-    const [user, setUser] = useState<User | null>(null)
-    const router = useRouter()
+    const value = useContext(AuthContext)
 
-    useEffect(() => {
-        let isMounted = true;
+    if (!value) {
+        throw new Error('useAuth must be used within AuthGuard')
+    }
 
-        const fetchSession = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (isMounted) setUser(session?.user ?? null);
-            } catch (err) {
-                console.error('Auth check failed:', err);
-                if (isMounted) setUser(null);
-            }
-        };
-
-        fetchSession();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
-            if (isMounted) setUser(s?.user ?? null);
-        });
-
-        return () => {
-            isMounted = false;
-            subscription.unsubscribe();
-        };
-    }, [])
-
-    const signOut = async () => {
-        try {
-            sessionStorage.removeItem('auth_checked');
-            await supabase.auth.signOut();
-            router.push('/login');
-        } catch (err) {
-            console.error('Sign out error:', err);
-            sessionStorage.clear();
-            router.push('/login');
-        }
-    };
-
-    return { user, signOut }
+    return value
 }

@@ -5,6 +5,7 @@ import { X, Check, XIcon, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Select,
   SelectContent,
@@ -31,11 +32,14 @@ interface DayModalProps {
   onClose: () => void
   onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B") => void
   onDelete?: (day: DayData) => void
+  isSaving?: boolean
+  isDeletePending?: boolean
 }
 
-export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
+export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isDeletePending = false }: DayModalProps) {
   const { user } = useAuth()
   const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
+  const isBusy = isSaving || isDeletePending
 
   const getSuggestedTeam = (date: Date): "A" | "B" => {
 
@@ -62,7 +66,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
   const [team, setTeam] = useState<"A" | "B">(day.team || getSuggestedTeam(day.date))
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("hu-HU", {
@@ -80,12 +84,11 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
 
   const handleDeleteConfirm = () => {
     onDelete?.(day)
-    onClose()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={isBusy ? undefined : onClose} />
 
       <div className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
@@ -94,7 +97,8 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">
           <h2 className="text-lg font-semibold text-[#1F2937]">Kaja rögzítése</h2>
-          <button
+              <button
+            disabled={isBusy}
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center hover:bg-[#E5E7EB] transition-colors cursor-pointer"
           >
@@ -112,23 +116,25 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             <Label className="text-sm font-medium text-[#1F2937]">Volt személyzeti étkezés ezen a napon?</Label>
             <div className="grid grid-cols-2 gap-3">
               <button
-                disabled={!canEdit}
+                disabled={!canEdit || isBusy}
+                aria-pressed={hadFood === true}
                 onClick={() => setHadFood(true)}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === true
                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                   : "border-[#E5E7EB] hover:border-emerald-300 text-[#6B7280]"
-                  } ${!canEdit ? "opacity-60 cursor-not-allowed" : ""}`}
+                  } ${!canEdit || isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <Check className="w-5 h-5" />
                 <span className="font-medium">Igen</span>
               </button>
               <button
-                disabled={!canEdit}
+                disabled={!canEdit || isBusy}
+                aria-pressed={hadFood === false}
                 onClick={() => setHadFood(false)}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === false
                   ? "border-rose-500 bg-rose-50 text-rose-700"
                   : "border-[#E5E7EB] hover:border-rose-300 text-[#6B7280]"
-                  } ${!canEdit ? "opacity-60 cursor-not-allowed" : ""}`}
+                  } ${!canEdit || isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <XIcon className="w-5 h-5" />
                 <span className="font-medium">Nem</span>
@@ -143,11 +149,11 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               </Label>
               <Input
                 id="details"
-                disabled={!canEdit}
+                disabled={!canEdit || isBusy}
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder={hadFood ? "Pl. Csirkepaprikás" : "Pl. Szabadnap"}
-                className={`h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 ${!canEdit ? "bg-gray-50 text-gray-400" : ""}`}
+                className={`h-12 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 ${!canEdit || isBusy ? "bg-gray-50 text-gray-400" : ""}`}
               />
             </div>
           )}
@@ -157,8 +163,8 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
               <Label htmlFor="team" className="text-sm font-medium text-[#1F2937]">
                 {hadFood ? "Melyik csapattól kaptuk?" : "Melyik csapat dolgozik ezen a napon?"}
               </Label>
-              <Select disabled={!canEdit} value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
-                <SelectTrigger className={`w-full h-12 py-3 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer bg-white ${!canEdit ? "bg-gray-50 text-gray-400" : ""}`}>
+              <Select disabled={!canEdit || isBusy} value={team || ""} onValueChange={(value) => setTeam(value as "A" | "B")}>
+                <SelectTrigger className={`w-full h-12 py-3 rounded-xl border-2 border-[#E5E7EB] focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer bg-white ${!canEdit || isBusy ? "bg-gray-50 text-gray-400" : ""}`}>
                   <SelectValue placeholder="Válassz csapatot" />
                 </SelectTrigger>
                 <SelectContent>
@@ -187,6 +193,7 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             <Button
               variant="outline"
               onClick={onClose}
+              disabled={isBusy}
               className="flex-1 h-12 rounded-xl border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] bg-transparent cursor-pointer"
             >
               Mégse
@@ -194,37 +201,40 @@ export function DayModal({ day, onClose, onSave, onDelete }: DayModalProps) {
             {canEdit && (
               <Button
                 onClick={handleSave}
-                disabled={hadFood === null}
-                className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer"
+                disabled={hadFood === null || isBusy}
+                className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer inline-flex items-center justify-center"
               >
-                Mentés
+                {isSaving ? <Spinner className="size-4 text-white" /> : "Mentés"}
               </Button>
             )}
           </div>
           {canEdit && day.status !== "empty" && (
-            isDeleting ? (
+            isDeleteConfirmOpen ? (
               <div className="space-y-3 p-4 bg-rose-50/50 rounded-xl border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
                 <p className="text-sm text-center text-rose-800 font-medium">Biztosan törölni szeretnéd a bejegyzést?</p>
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => setIsDeleting(false)}
+                    onClick={() => setIsDeleteConfirmOpen(false)}
+                    disabled={isBusy}
                     className="flex-1 h-10 rounded-lg border-rose-200 text-rose-700 hover:bg-rose-100 bg-transparent cursor-pointer"
                   >
                     Mégse
                   </Button>
                   <Button
                     onClick={handleDeleteConfirm}
-                    className="flex-1 h-10 rounded-lg bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                    disabled={isBusy}
+                    className="flex-1 h-10 rounded-lg bg-rose-600 hover:bg-rose-700 text-white cursor-pointer inline-flex items-center justify-center"
                   >
-                    Végleges törlés
+                    {isDeletePending ? <Spinner className="size-4 text-white" /> : "Végleges törlés"}
                   </Button>
                 </div>
               </div>
             ) : (
               <Button
                 variant="outline"
-                onClick={() => setIsDeleting(true)}
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                disabled={isBusy}
                 className="w-full h-12 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 bg-transparent cursor-pointer flex items-center justify-center gap-2 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />

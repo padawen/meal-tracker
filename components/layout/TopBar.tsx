@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { UtensilsCrossed, LogOut, Settings } from "lucide-react"
+import type { Route } from "next"
 import { useRouter } from "next/navigation"
 import { UserAvatar, TabNavigation } from "@/components/shared"
 import { useAuth } from "@/components/auth/AuthGuard"
@@ -18,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { updateProfileAction } from "@/app/actions/user-actions"
+import type { ComponentProps } from "react"
 
 interface TopBarProps {
   currentPage: "kaja" | "stats" | "admin"
@@ -63,20 +65,11 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
   const displayFirstName = profile.full_name ? profile.full_name.split(' ')[0] : firstGoogleName
   const displayFullName = profile.full_name || user?.user_metadata?.full_name || firstGoogleName
   const avatarUrl = profile.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture
-
-  const handleTabChange = (page: "kaja" | "stats" | "admin") => {
-    if (page === "kaja") {
-      router.push("/")
-      return
-    }
-
-    if (page === "stats") {
-      router.push("/statistics")
-      return
-    }
-
-    router.push("/admin")
-  }
+  const tabs: ComponentProps<typeof TabNavigation<"kaja" | "stats" | "admin">>["tabs"] = [
+    { key: "kaja" as const, label: "Kaja", href: "/" as Route },
+    { key: "stats" as const, label: "Statisztika", href: "/statistics" as Route },
+    ...(isAdmin ? [{ key: "admin" as const, label: "Admin", href: "/admin" as Route }] : []),
+  ]
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-[#E5E7EB]">
@@ -126,13 +119,8 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
 
         <div className="flex items-center justify-center pb-3 -mt-1">
           <TabNavigation
-            tabs={[
-              { key: "kaja", label: "Kaja" },
-              { key: "stats", label: "Statisztika" },
-              ...(isAdmin ? [{ key: "admin" as const, label: "Admin" }] : []),
-            ]}
+            tabs={tabs}
             activeTab={currentPage}
-            onTabChange={handleTabChange}
             size="sm"
           />
         </div>

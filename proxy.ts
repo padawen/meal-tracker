@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { publicEnv } from '@/lib/env'
 import type { Database } from '@/lib/supabase/database.types'
+import { sanitizeNextPath } from '@/lib/utils'
 
 function isProtectedRoute(pathname: string) {
   return pathname === '/' || pathname.startsWith('/statistics') || pathname.startsWith('/admin')
@@ -30,7 +31,7 @@ function withSupabaseCookies(target: NextResponse, source: NextResponse) {
 
 function loginRedirect(request: NextRequest, supabaseResponse: NextResponse) {
   const redirectUrl = new URL('/login', request.url)
-  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`
+  const nextPath = sanitizeNextPath(`${request.nextUrl.pathname}${request.nextUrl.search}`)
 
   if (nextPath && nextPath !== '/login') {
     redirectUrl.searchParams.set('next', nextPath)

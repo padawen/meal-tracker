@@ -19,14 +19,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 interface LoginPageClientProps {
+  initialError?: string
   nextPath: string
 }
 
-export function LoginPageClient({ nextPath }: LoginPageClientProps) {
+export function LoginPageClient({ initialError, nextPath }: LoginPageClientProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
-  const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginError, setLoginError] = useState(initialError || null)
   const [modalError, setModalError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Loader2, Search } from "lucide-react"
 import { DayModal } from "./DayModal"
 import { ConfettiEffect } from "./ConfettiEffect"
 import { MealOverviewCards } from "./MealOverviewCards"
@@ -14,8 +14,25 @@ import { ViewToggle } from "./ViewToggle"
 import { DayItem, DayData } from "./DayItem"
 import { useMealData } from "./useMealData"
 
+function normalizeSearchText(value: string) {
+    return value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("hu-HU")
+        .trim()
+}
+
+function isToday(date: Date) {
+    const candidate = new Date(date)
+    const today = new Date()
+    candidate.setHours(0, 0, 0, 0)
+    today.setHours(0, 0, 0, 0)
+    return candidate.getTime() === today.getTime()
+}
+
 export function MealTable() {
-    const [view, setView] = useState<"week" | "month">("week")
+    const [view, setView] = useState<"week" | "month" | "year">("week")
+    const [searchQuery, setSearchQuery] = useState("")
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
     const { user } = useAuth()
     const router = useRouter()
@@ -23,9 +40,9 @@ export function MealTable() {
 
     const {
         loading, allRecords, setAllRecords,
-        currentWeekDays, currentMonthDays,
+        currentWeekDays, currentMonthDays, currentYearDays,
         weekStats, monthStats, totalEmptyDays,
-        weekOffset, monthOffset, setWeekOffset, setMonthOffset,
+        weekOffset, monthOffset, yearOffset, setWeekOffset, setMonthOffset, setYearOffset,
         getWeekStart, canNavigateBack, formatDateStr
     } = useMealData()
 
@@ -58,7 +75,35 @@ export function MealTable() {
         setSelectedDay(day)
     }
 
-    const displayDays = view === "week" ? currentWeekDays : currentMonthDays
+    const displayDays = view === "week" ? currentWeekDays : view === "month" ? currentMonthDays : currentYearDays
+    const normalizedSearch = normalizeSearchText(searchQuery)
+    const filteredDays = useMemo(() => {
+        if (!normalizedSearch) {
+            return displayDays
+        }
+
+        return displayDays.filter((day) => {
+            if (view === "year" && day.status === "empty" && !isToday(day.date)) {
+                return false
+            }
+
+            const teamLabel = day.team === "A" ? "zs csapat" : day.team === "B" ? "r csapat" : ""
+            const searchableText = [
+                day.date.toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" }),
+                day.date.toLocaleDateString("hu-HU", { weekday: "long" }),
+                day.food,
+                day.reason,
+                day.recordedBy,
+                teamLabel,
+                day.holidayName,
+            ]
+                .filter(Boolean)
+                .join(" ")
+            const normalizedDayText = normalizeSearchText(searchableText)
+
+            return normalizedDayText.includes(normalizedSearch)
+        })
+    }, [displayDays, normalizedSearch])
 
     const getPeriodLabel = () => {
         if (view === "week") {
@@ -82,22 +127,50 @@ export function MealTable() {
             }
             return `${startYear}. ${startMonth} ${actualStart.getDate()} – ${endMonth} ${weekEnd.getDate()}`
         }
-        const targetDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
-        return targetDate.toLocaleDateString("hu-HU", { year: "numeric", month: "long" })
+        if (view === "month") {
+            const targetDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
+            return targetDate.toLocaleDateString("hu-HU", { year: "numeric", month: "long" })
+        }
+
+        return `${today.getFullYear() + yearOffset}. év`
     }
 
     const navigateBack = () => {
         if (!canNavigateBack(view)) return
-        view === "week" ? setWeekOffset(p => p - 1) : setMonthOffset(p => p - 1)
+        if (view === "week") {
+            setWeekOffset(p => p - 1)
+            return
+        }
+        if (view === "month") {
+            setMonthOffset(p => p - 1)
+            return
+        }
+        setYearOffset(p => p - 1)
     }
 
     const navigateForward = () => {
-        view === "week" ? setWeekOffset(p => p + 1) : setMonthOffset(p => p + 1)
+        if (view === "week") {
+            setWeekOffset(p => p + 1)
+            return
+        }
+        if (view === "month") {
+            setMonthOffset(p => p + 1)
+            return
+        }
+        setYearOffset(p => p + 1)
     }
 
-    const handleViewChange = (newView: "week" | "month") => {
+    const handleViewChange = (newView: "week" | "month" | "year") => {
         setView(newView)
-        newView === "week" ? setWeekOffset(0) : setMonthOffset(0)
+        if (newView === "week") {
+            setWeekOffset(0)
+            return
+        }
+        if (newView === "month") {
+            setMonthOffset(0)
+            return
+        }
+        setYearOffset(0)
     }
 
     if (loading) {
@@ -140,24 +213,39 @@ export function MealTable() {
                 canNext={true}
             />
 
-            {((view === "month" && monthOffset !== 0) || (view === "week" && weekOffset !== 0)) && (
+            {view === "year" && (
+                <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm p-2">
+                    <div className="flex items-center gap-3 rounded-xl bg-[#F3F4F6] px-4 py-3">
+                        <Search className="w-4 h-4 text-[#6B7280]" />
+                        <input
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Keresés napra, ételre, emberre..."
+                            className="w-full bg-transparent text-sm text-[#1F2937] placeholder:text-[#9CA3AF] outline-none"
+                        />
+                    </div>
+                </div>
+            )}
+
+            {((view === "month" && monthOffset !== 0) || (view === "week" && weekOffset !== 0) || (view === "year" && yearOffset !== 0)) && (
                 <div className="flex justify-center">
                     <div className="bg-[#F3F4F6] rounded-xl p-1 inline-flex">
                         <button
                             onClick={() => {
                                 setWeekOffset(0)
                                 setMonthOffset(0)
+                                setYearOffset(0)
                             }}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer bg-white text-[#1F2937] shadow-sm"
                         >
                             <div className="flex items-center justify-center">
-                                {(view === "week" ? weekOffset < 0 : monthOffset < 0)
+                                {(view === "week" ? weekOffset < 0 : view === "month" ? monthOffset < 0 : yearOffset < 0)
                                     ? <ArrowRight className="w-4 h-4" />
                                     : <ArrowLeft className="w-4 h-4" />
                                 }
                             </div>
                             <span>
-                                {(view === "week" ? weekOffset < 0 : monthOffset < 0) ? "Előre a mai napra" : "Vissza a mai napra"}
+                                {(view === "week" ? weekOffset < 0 : view === "month" ? monthOffset < 0 : yearOffset < 0) ? "Előre a mai napra" : "Vissza a mai napra"}
                             </span>
                         </button>
                     </div>
@@ -165,9 +253,15 @@ export function MealTable() {
             )}
 
             <div className="space-y-3">
-                {displayDays.map((day, index) => (
+                {filteredDays.map((day, index) => (
                     <DayItem key={index} day={day} onClick={() => handleDayClick(day)} />
                 ))}
+                {filteredDays.length === 0 && (
+                    <div className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-5 py-6 text-center">
+                        <p className="text-sm font-medium text-[#1F2937]">Nincs találat</p>
+                        <p className="mt-1 text-xs text-[#6B7280]">Próbálj másik napra, ételre vagy névre keresni.</p>
+                    </div>
+                )}
             </div>
 
             {selectedDay && (

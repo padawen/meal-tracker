@@ -19,6 +19,7 @@ import {
     getRequiredMealRange,
     getWeekDays,
     getWeekStartForDate,
+    getYearDays,
     mergeMealDayData,
     replaceMealDay,
 } from "@/lib/meal-view-domain"
@@ -29,15 +30,18 @@ interface UseMealDataReturn {
     setAllRecords: (records: DayData[]) => void
     currentWeekDays: DayData[]
     currentMonthDays: DayData[]
+    currentYearDays: DayData[]
     weekStats: PeriodStats
     monthStats: PeriodStats
     totalEmptyDays: number
     weekOffset: number
     monthOffset: number
+    yearOffset: number
     setWeekOffset: (offset: number | ((prev: number) => number)) => void
     setMonthOffset: (offset: number | ((prev: number) => number)) => void
+    setYearOffset: (offset: number | ((prev: number) => number)) => void
     getWeekStart: (offset: number) => Date
-    canNavigateBack: (view: "week" | "month") => boolean
+    canNavigateBack: (view: "week" | "month" | "year") => boolean
     formatDateStr: (date: Date) => string
 }
 
@@ -46,6 +50,7 @@ export function useMealData(): UseMealDataReturn {
     const [allRecords, setAllRecords] = useState<DayData[]>([])
     const [weekOffset, setWeekOffset] = useState(0)
     const [monthOffset, setMonthOffset] = useState(0)
+    const [yearOffset, setYearOffset] = useState(0)
 
     const loadedRangeRef = useRef<{ start: Date; end: Date } | null>(null)
     const loadingRangeRef = useRef(false)
@@ -53,8 +58,8 @@ export function useMealData(): UseMealDataReturn {
     const today = new Date()
     const getWeekStart = useCallback((offset: number) => getWeekStartForDate(today, offset), [today])
     const canNavigateBack = useCallback(
-        (view: "week" | "month") => canNavigateMealBack(view, today, weekOffset, monthOffset),
-        [monthOffset, today, weekOffset]
+        (view: "week" | "month" | "year") => canNavigateMealBack(view, today, weekOffset, monthOffset, yearOffset),
+        [monthOffset, today, weekOffset, yearOffset]
     )
 
     const fetchDateRange = useCallback(async (startDate: Date, endDate: Date): Promise<DayData[]> => {
@@ -108,7 +113,7 @@ export function useMealData(): UseMealDataReturn {
     useEffect(() => {
         const checkAndLoadMoreData = async () => {
             if (!loadedRangeRef.current || loadingRangeRef.current) return
-            const requiredRange = getRequiredMealRange(today, weekOffset, monthOffset)
+            const requiredRange = getRequiredMealRange(today, weekOffset, monthOffset, yearOffset)
             const loadedRange = loadedRangeRef.current
 
             if (requiredRange.start < loadedRange.start || requiredRange.end > loadedRange.end) {
@@ -140,7 +145,7 @@ export function useMealData(): UseMealDataReturn {
         }
 
         checkAndLoadMoreData()
-    }, [weekOffset, monthOffset])
+    }, [weekOffset, monthOffset, yearOffset])
 
     useEffect(() => {
         const channel = supabase.channel('meal_records_changes')
@@ -179,6 +184,10 @@ export function useMealData(): UseMealDataReturn {
         return getMonthDays(allRecords, targetDate)
     }, [allRecords, monthOffset, today])
 
+    const currentYearDays = useMemo(() => {
+        return getYearDays(allRecords, today.getFullYear() + yearOffset)
+    }, [allRecords, today, yearOffset])
+
     const currentActualWeekDays = useMemo(() => getCurrentWeekStatsDays(allRecords, today), [allRecords, today])
     const currentActualMonthDays = useMemo(() => getCurrentMonthStatsDays(allRecords, today), [allRecords, today])
 
@@ -189,9 +198,9 @@ export function useMealData(): UseMealDataReturn {
 
     return {
         loading, allRecords, setAllRecords,
-        currentWeekDays, currentMonthDays,
+        currentWeekDays, currentMonthDays, currentYearDays,
         weekStats, monthStats, totalEmptyDays,
-        weekOffset, monthOffset, setWeekOffset, setMonthOffset,
+        weekOffset, monthOffset, yearOffset, setWeekOffset, setMonthOffset, setYearOffset,
         getWeekStart, canNavigateBack, formatDateStr: formatDateOnly
     }
 }

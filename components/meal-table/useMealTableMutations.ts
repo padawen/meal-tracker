@@ -50,7 +50,13 @@ export function useMealTableMutations({
     setTimeout(() => setConfettiVariant(null), 3000)
   }
 
-  const handleSave = async (dayData: MealDayData, hadFood: boolean, details: string, team?: 'A' | 'B') => {
+  const handleSave = async (
+    dayData: MealDayData,
+    hadFood: boolean,
+    details: string,
+    team?: 'A' | 'B',
+    mealImageUrl?: string
+  ) => {
     const dateStr = formatDateStr(dayData.date)
 
     setPendingAction('save')
@@ -60,14 +66,20 @@ export function useMealTableMutations({
           date: dateStr,
           had_meal: hadFood,
           meal_name: hadFood ? details : null,
+          meal_image_url: hadFood ? mealImageUrl || null : null,
           reason: !hadFood ? details : null,
           team: team || null,
         })
 
         if (!response.success && response.error) {
+          if ('conflict' in response && response.conflict) {
+            setSelectedDay(null)
+          }
           toast({ title: 'Figyelem', description: response.error, variant: 'destructive' })
           return
         }
+
+        const savedTimestamp = 'timestamp' in response ? response.timestamp : undefined
 
         triggerConfetti(hadFood ? 'celebration' : 'sad')
 
@@ -78,11 +90,12 @@ export function useMealTableMutations({
             ...updatedRecords[indexToUpdate],
             status: hadFood ? 'volt' : 'nem',
             food: hadFood ? details : undefined,
+            mealImageUrl: hadFood ? mealImageUrl : undefined,
             reason: !hadFood ? details : undefined,
             team,
             recordedBy: currentUserName,
             recordedByUserId: userId,
-            recordedAt: formatTimestamp(response.timestamp),
+            recordedAt: formatTimestamp(savedTimestamp),
           }
           setAllRecords(updatedRecords)
         }
@@ -118,6 +131,7 @@ export function useMealTableMutations({
             ...updatedRecords[indexToUpdate],
             status: 'empty',
             food: undefined,
+            mealImageUrl: undefined,
             reason: undefined,
             team: undefined,
             recordedBy: undefined,

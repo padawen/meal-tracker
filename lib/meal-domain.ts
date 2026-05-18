@@ -9,6 +9,7 @@ export interface MealDayData {
   date: Date
   status: FoodStatus
   food?: string
+  mealImageUrl?: string
   reason?: string
   recordedBy?: string
   recordedByUserId?: string
@@ -31,6 +32,7 @@ export interface MealRecordRow {
   date: string
   had_meal: boolean
   meal_name: string | null
+  meal_image_url: string | null
   reason: string | null
   recorded_by: string
   created_at: string
@@ -127,6 +129,7 @@ export function buildMealDayDataRange(
     let status: FoodStatus = 'empty'
     let food: string | undefined
     let reason: string | undefined
+    let mealImageUrl: string | undefined
     let recordedBy: string | undefined
     let recordedByUserId: string | undefined
     let recordedAt: string | undefined
@@ -135,6 +138,7 @@ export function buildMealDayDataRange(
     if (record) {
       status = record.had_meal ? 'volt' : 'nem'
       food = record.meal_name || undefined
+      mealImageUrl = record.meal_image_url || undefined
       reason = record.reason || undefined
       recordedByUserId = record.recorded_by
       team = (record.team as TeamCode) || undefined
@@ -148,6 +152,7 @@ export function buildMealDayDataRange(
       date: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
       status,
       food,
+      mealImageUrl,
       reason,
       recordedBy,
       recordedByUserId,

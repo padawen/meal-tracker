@@ -9,11 +9,19 @@ interface DateRange {
 export function getInitialMealFetchRange(today: Date): DateRange {
   return {
     start: new Date(MEAL_TRACKING_START),
-    end: new Date(today.getFullYear(), today.getMonth() + 3, 0),
+    end: new Date(today.getFullYear(), today.getMonth() + 12, 31),
   }
 }
 
-export function getRequiredMealRange(today: Date, weekOffset: number, monthOffset: number): DateRange {
+export function getRequiredMealRange(today: Date, weekOffset: number, monthOffset: number, yearOffset: number): DateRange {
+  if (yearOffset !== 0) {
+    const targetYear = today.getFullYear() + yearOffset
+    return clampRangeStart({
+      start: new Date(targetYear - 1, 0, 1),
+      end: new Date(targetYear + 1, 11, 31),
+    })
+  }
+
   if (monthOffset !== 0) {
     const targetMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
     return clampRangeStart({
@@ -40,13 +48,18 @@ export function getWeekStartForDate(baseDate: Date, offset = 0) {
   return date
 }
 
-export function canNavigateMealBack(view: 'week' | 'month', today: Date, weekOffset: number, monthOffset: number) {
+export function canNavigateMealBack(view: 'week' | 'month' | 'year', today: Date, weekOffset: number, monthOffset: number, yearOffset: number) {
   if (view === 'week') {
     const previousWeekStart = getWeekStartForDate(today, weekOffset - 1)
     const previousWeekEnd = new Date(previousWeekStart)
     previousWeekEnd.setDate(previousWeekEnd.getDate() + 6)
 
     return previousWeekEnd >= MEAL_TRACKING_START
+  }
+
+  if (view === 'year') {
+    const previousYearEnd = new Date(today.getFullYear() + yearOffset - 1, 11, 31)
+    return previousYearEnd >= MEAL_TRACKING_START
   }
 
   const previousMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset - 1, 1)
@@ -96,6 +109,10 @@ export function getMonthDays(allRecords: MealDayData[], targetDate: Date) {
   return allRecords.filter(
     (day) => day.date.getMonth() === targetDate.getMonth() && day.date.getFullYear() === targetDate.getFullYear()
   )
+}
+
+export function getYearDays(allRecords: MealDayData[], targetYear: number) {
+  return allRecords.filter((day) => day.date.getFullYear() === targetYear)
 }
 
 export function getCurrentWeekStatsDays(allRecords: MealDayData[], today: Date) {

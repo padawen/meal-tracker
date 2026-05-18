@@ -48,6 +48,7 @@ export interface Database {
                     date: string
                     had_meal: boolean
                     meal_name: string | null
+                    meal_image_url: string | null
                     reason: string | null
                     recorded_by: string
                     team: string | null
@@ -59,6 +60,7 @@ export interface Database {
                     date: string
                     had_meal: boolean
                     meal_name?: string | null
+                    meal_image_url?: string | null
                     reason?: string | null
                     recorded_by: string
                     team?: string | null
@@ -70,6 +72,7 @@ export interface Database {
                     date?: string
                     had_meal?: boolean
                     meal_name?: string | null
+                    meal_image_url?: string | null
                     reason?: string | null
                     recorded_by?: string
                     team?: string | null

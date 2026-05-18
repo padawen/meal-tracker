@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { X, Check, XIcon, Trash2 } from "lucide-react"
+import type { ChangeEvent } from "react"
+import { useRef, useState } from "react"
+import { X, Check, XIcon, Trash2, ImagePlus, Trash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +21,7 @@ interface DayData {
   date: Date
   status: "volt" | "nem" | "empty"
   food?: string
+  mealImageUrl?: string
   reason?: string
   recordedBy?: string
   recordedByUserId?: string
@@ -30,16 +32,48 @@ interface DayData {
 interface DayModalProps {
   day: DayData
   onClose: () => void
-  onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B") => void
+  onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B", mealImageUrl?: string) => void
   onDelete?: (day: DayData) => void
   isSaving?: boolean
   isDeletePending?: boolean
+}
+
+async function resizeImageToDataUrl(file: File) {
+  const rawDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error("Nem sikerült betölteni a képet"))
+    reader.readAsDataURL(file)
+  })
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error("Nem sikerült megnyitni a képet"))
+    img.src = rawDataUrl
+  })
+
+  const maxSize = 1280
+  const ratio = Math.min(maxSize / image.width, maxSize / image.height, 1)
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.round(image.width * ratio)
+  canvas.height = Math.round(image.height * ratio)
+
+  const context = canvas.getContext("2d")
+  if (!context) {
+    throw new Error("Nem sikerült előkészíteni a képet")
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+  return canvas.toDataURL("image/jpeg", 0.82)
 }
 
 export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isDeletePending = false }: DayModalProps) {
   const { user } = useAuth()
   const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
   const isBusy = isSaving || isDeletePending
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const getSuggestedTeam = (date: Date): "A" | "B" => {
 
@@ -66,6 +100,9 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
   const [team, setTeam] = useState<"A" | "B">(day.team || getSuggestedTeam(day.date))
+  const [mealImageUrl, setMealImageUrl] = useState(day.mealImageUrl || "")
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [isPreparingImage, setIsPreparingImage] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
 
   const formatDate = (date: Date) => {
@@ -78,12 +115,48 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
 
   const handleSave = () => {
     if (hadFood !== null) {
-      onSave(day, hadFood, details, team || undefined)
+      onSave(day, hadFood, details, team || undefined, hadFood ? mealImageUrl || undefined : undefined)
     }
   }
 
   const handleDeleteConfirm = () => {
     onDelete?.(day)
+  }
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      setImageError("Csak képfájl tölthető fel")
+      return
+    }
+
+    setIsPreparingImage(true)
+    setImageError(null)
+
+    try {
+      const nextImageUrl = await resizeImageToDataUrl(file)
+
+      if (nextImageUrl.length > 1_600_000) {
+        throw new Error("A kép túl nagy lett mentéshez. Válassz kisebb képet.")
+      }
+
+      setMealImageUrl(nextImageUrl)
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "Nem sikerült feldolgozni a képet")
+    } finally {
+      setIsPreparingImage(false)
+      event.target.value = ""
+    }
+  }
+
+  const handleHadFoodChange = (nextValue: boolean) => {
+    setHadFood(nextValue)
+    if (!nextValue) {
+      setMealImageUrl("")
+      setImageError(null)
+    }
   }
 
   return (
@@ -118,7 +191,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
               <button
                 disabled={!canEdit || isBusy}
                 aria-pressed={hadFood === true}
-                onClick={() => setHadFood(true)}
+                onClick={() => handleHadFoodChange(true)}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === true
                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                   : "border-[#E5E7EB] hover:border-emerald-300 text-[#6B7280]"
@@ -130,7 +203,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
               <button
                 disabled={!canEdit || isBusy}
                 aria-pressed={hadFood === false}
-                onClick={() => setHadFood(false)}
+                onClick={() => handleHadFoodChange(false)}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${hadFood === false
                   ? "border-rose-500 bg-rose-50 text-rose-700"
                   : "border-[#E5E7EB] hover:border-rose-300 text-[#6B7280]"
@@ -172,6 +245,63 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
                   <SelectItem value="B">R csapat</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {hadFood === true && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-sm font-medium text-[#1F2937]">Kép az ételről</Label>
+                {canEdit && mealImageUrl && (
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => {
+                      setMealImageUrl("")
+                      setImageError(null)
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700 cursor-pointer"
+                  >
+                    <Trash className="w-3 h-3" />
+                    Kép törlése
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={!canEdit || isBusy}
+              />
+
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={isBusy || isPreparingImage}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-full h-12 rounded-xl border-2 border-[#E5E7EB] bg-[#F9FAFB] text-[#1F2937] hover:bg-[#F3F4F6] inline-flex items-center justify-center gap-2 transition-colors cursor-pointer ${isBusy || isPreparingImage ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  <span className="text-sm font-medium">{isPreparingImage ? "Kép előkészítése..." : mealImageUrl ? "Kép cseréje" : "Kép feltöltése"}</span>
+                </button>
+              )}
+
+              {imageError && (
+                <p className="text-xs text-rose-600">{imageError}</p>
+              )}
+
+              {mealImageUrl && (
+                <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
+                  <img
+                    src={mealImageUrl}
+                    alt="Feltöltött ételfotó"
+                    className="block w-full h-auto max-h-[320px] object-cover"
+                  />
+                </div>
+              )}
             </div>
           )}
 

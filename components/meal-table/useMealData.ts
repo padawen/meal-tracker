@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { calculatePeriodStats, PeriodStats } from "@/lib/stats-utils"
 import { supabase } from '@/lib/supabase/client'
 import { formatDateOnly, parseDateOnly } from "@/lib/utils"
@@ -46,6 +47,7 @@ interface UseMealDataReturn {
 }
 
 export function useMealData(): UseMealDataReturn {
+    const router = useRouter()
     const [loading, setLoading] = useState(true)
     const [allRecords, setAllRecords] = useState<DayData[]>([])
     const [weekOffset, setWeekOffset] = useState(0)
@@ -54,6 +56,7 @@ export function useMealData(): UseMealDataReturn {
 
     const loadedRangeRef = useRef<{ start: Date; end: Date } | null>(null)
     const loadingRangeRef = useRef(false)
+    const lastRefreshAtRef = useRef(0)
 
     const today = new Date()
     const getWeekStart = useCallback((offset: number) => getWeekStartForDate(today, offset), [today])
@@ -161,6 +164,12 @@ export function useMealData(): UseMealDataReturn {
                     if (newData && newData.length > 0) {
                         setAllRecords(prev => replaceMealDay(prev, newData[0]));
                     }
+
+                    const now = Date.now()
+                    if (now - lastRefreshAtRef.current > 1000) {
+                        lastRefreshAtRef.current = now
+                        router.refresh()
+                    }
                 } catch (error) {
                     console.error('Error fetching realtime update:', error);
                 }
@@ -168,7 +177,7 @@ export function useMealData(): UseMealDataReturn {
             .subscribe()
 
         return () => { supabase.removeChannel(channel) }
-    }, [fetchDateRange])
+    }, [fetchDateRange, router])
 
     const recordsByDate = useMemo(
         () => new Map(allRecords.map((day) => [formatDateOnly(day.date), day])),

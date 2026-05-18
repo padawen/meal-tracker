@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowRight, Loader2, Search, X } from "lucide-react"
 import { DayModal } from "./DayModal"
@@ -34,7 +34,7 @@ export function MealTable() {
     const [view, setView] = useState<"week" | "month" | "year">("week")
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
-    const { user } = useAuth()
+    const { profile, user } = useAuth()
     const router = useRouter()
     const { toast } = useToast()
 
@@ -49,13 +49,24 @@ export function MealTable() {
     const today = new Date()
     const { confettiVariant, handleDelete, handleSave, pendingAction } = useMealTableMutations({
         allRecords,
-        currentUserName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Ismeretlen',
+        currentUserName: profile.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Ismeretlen',
         formatDateStr,
         setAllRecords,
         setSelectedDay,
         toast,
         userId: user.id,
     })
+
+    useEffect(() => {
+        if (!selectedDay) {
+            return
+        }
+
+        const nextSelectedDay = allRecords.find((day) => formatDateStr(day.date) === formatDateStr(selectedDay.date))
+        if (nextSelectedDay) {
+            setSelectedDay(nextSelectedDay)
+        }
+    }, [allRecords, formatDateStr, selectedDay])
 
 
     const handleDayClick = (day: DayData) => {

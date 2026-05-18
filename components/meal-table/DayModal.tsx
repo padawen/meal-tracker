@@ -69,6 +69,22 @@ async function resizeImageToDataUrl(file: File) {
   return canvas.toDataURL("image/jpeg", 0.82)
 }
 
+async function openImageInNewTab(imageUrl: string) {
+  const response = await fetch(imageUrl)
+  const blob = await response.blob()
+  const blobUrl = URL.createObjectURL(blob)
+  const openedWindow = window.open(blobUrl, "_blank", "noopener,noreferrer")
+
+  if (!openedWindow) {
+    URL.revokeObjectURL(blobUrl)
+    throw new Error("A böngésző letiltotta az új lap megnyitását")
+  }
+
+  setTimeout(() => {
+    URL.revokeObjectURL(blobUrl)
+  }, 60_000)
+}
+
 export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isDeletePending = false }: DayModalProps) {
   const { user } = useAuth()
   const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
@@ -156,6 +172,18 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
     if (!nextValue) {
       setMealImageUrl("")
       setImageError(null)
+    }
+  }
+
+  const handleOpenImage = async () => {
+    if (!mealImageUrl) {
+      return
+    }
+
+    try {
+      await openImageInNewTab(mealImageUrl)
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "Nem sikerült megnyitni a képet")
     }
   }
 
@@ -294,13 +322,25 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
               )}
 
               {mealImageUrl && (
-                <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleOpenImage()
+                  }}
+                  className="block w-full overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] cursor-zoom-in"
+                >
                   <img
                     src={mealImageUrl}
                     alt="Feltöltött ételfotó"
                     className="block w-full h-auto max-h-[320px] object-cover"
                   />
-                </div>
+                </button>
+              )}
+
+              {mealImageUrl && (
+                <p className="text-xs text-[#6B7280]">
+                  Koppints vagy kattints a képre a teljes méretű kép új lapon való megnyitásához.
+                </p>
               )}
             </div>
           )}
@@ -374,6 +414,6 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
           )}
         </div>
       </div>
-    </div >
+    </div>
   )
 }

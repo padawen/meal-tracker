@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Outfit } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { ProfileRouteSync } from "@/components/auth/ProfileRouteSync"
 import "./globals.css"
 
 const outfit = Outfit({ subsets: ["latin"] })
@@ -60,6 +61,7 @@ export default function RootLayout({
   return (
     <html lang="hu">
       <body className={`${outfit.className} antialiased`}>
+        <ProfileRouteSync />
         {children}
         <Analytics />
       </body>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, Loader2, Search } from "lucide-react"
+import { ArrowLeft, ArrowRight, Loader2, Search, X } from "lucide-react"
 import { DayModal } from "./DayModal"
 import { ConfettiEffect } from "./ConfettiEffect"
 import { MealOverviewCards } from "./MealOverviewCards"
@@ -76,7 +76,7 @@ export function MealTable() {
     }
 
     const displayDays = view === "week" ? currentWeekDays : view === "month" ? currentMonthDays : currentYearDays
-    const normalizedSearch = normalizeSearchText(searchQuery)
+    const normalizedSearch = view === "year" ? normalizeSearchText(searchQuery) : ""
     const filteredDays = useMemo(() => {
         if (!normalizedSearch) {
             return displayDays
@@ -223,6 +223,16 @@ export function MealTable() {
                             placeholder="Keresés napra, ételre, emberre..."
                             className="w-full bg-transparent text-sm text-[#1F2937] placeholder:text-[#9CA3AF] outline-none"
                         />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                className="inline-flex items-center justify-center text-[#9CA3AF] hover:text-[#6B7280] transition-colors cursor-pointer"
+                                aria-label="Keresés törlése"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

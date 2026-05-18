@@ -1,7 +1,7 @@
 "use client"
 
 import type { ChangeEvent } from "react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { X, Check, XIcon, Trash2, ImagePlus, Trash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,20 +69,49 @@ async function resizeImageToDataUrl(file: File) {
   return canvas.toDataURL("image/jpeg", 0.82)
 }
 
+function dataUrlToBlob(dataUrl: string) {
+  const [header, content] = dataUrl.split(",", 2)
+  const mimeMatch = header.match(/data:(.*?)(;base64)?$/)
+
+  if (!mimeMatch) {
+    throw new Error("Érvénytelen képformátum")
+  }
+
+  const mimeType = mimeMatch[1] || "image/jpeg"
+  const isBase64 = header.includes(";base64")
+
+  if (isBase64) {
+    const binary = atob(content)
+    const bytes = new Uint8Array(binary.length)
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index)
+    }
+
+    return new Blob([bytes], { type: mimeType })
+  }
+
+  return new Blob([decodeURIComponent(content)], { type: mimeType })
+}
+
 async function openImageInNewTab(imageUrl: string) {
-  const response = await fetch(imageUrl)
-  const blob = await response.blob()
-  const blobUrl = URL.createObjectURL(blob)
+  const blobUrl = imageUrl.startsWith("data:")
+    ? URL.createObjectURL(dataUrlToBlob(imageUrl))
+    : imageUrl
   const openedWindow = window.open(blobUrl, "_blank", "noopener,noreferrer")
 
   if (!openedWindow) {
-    URL.revokeObjectURL(blobUrl)
+    if (imageUrl.startsWith("data:")) {
+      URL.revokeObjectURL(blobUrl)
+    }
     throw new Error("A böngésző letiltotta az új lap megnyitását")
   }
 
-  setTimeout(() => {
-    URL.revokeObjectURL(blobUrl)
-  }, 60_000)
+  if (imageUrl.startsWith("data:")) {
+    setTimeout(() => {
+      URL.revokeObjectURL(blobUrl)
+    }, 60_000)
+  }
 }
 
 export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isDeletePending = false }: DayModalProps) {
@@ -120,6 +149,14 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
   const [imageError, setImageError] = useState<string | null>(null)
   const [isPreparingImage, setIsPreparingImage] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+
+  useEffect(() => {
+    setHadFood(day.status === "volt" ? true : day.status === "nem" ? false : null)
+    setDetails(day.food || day.reason || "")
+    setTeam(day.team || getSuggestedTeam(day.date))
+    setMealImageUrl(day.mealImageUrl || "")
+    setImageError(null)
+  }, [day])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("hu-HU", {

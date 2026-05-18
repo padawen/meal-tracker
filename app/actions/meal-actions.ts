@@ -5,27 +5,51 @@ import type { PostgrestSingleResponse } from '@supabase/supabase-js'
 
 import { getAuthenticatedServerUser } from '@/lib/auth/server'
 
+type ExistingMealRecordOwner = {
+    id: string
+    recorded_by: string | null
+    created_at: string
+}
+
 async function getExistingMealRecordOwner(
     supabase: Awaited<ReturnType<typeof getAuthenticatedServerUser>>['supabase'],
     date: string
 ) {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('meal_records')
-        .select(`
-            recorded_by,
-            created_at,
-            profiles ( full_name, email )
-        `)
+        .select('id, recorded_by, created_at')
         .eq('date', date)
-        .maybeSingle()
+        .maybeSingle<ExistingMealRecordOwner>()
 
-    return data
+    if (error) {
+        return { data: null, error }
+    }
+
+    return { data, error: null }
 }
 
-function buildConflictResponse(
-    existing: Awaited<ReturnType<typeof getExistingMealRecordOwner>>
+async function getProfileDisplayName(
+    supabase: Awaited<ReturnType<typeof getAuthenticatedServerUser>>['supabase'],
+    userId?: string | null
 ) {
-    const name = (existing?.profiles as any)?.full_name || (existing?.profiles as any)?.email || 'Valaki'
+    if (!userId) {
+        return 'Valaki'
+    }
+
+    const { data } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', userId)
+        .maybeSingle()
+
+    return data?.full_name || data?.email || 'Valaki'
+}
+
+async function buildConflictResponse(
+    supabase: Awaited<ReturnType<typeof getAuthenticatedServerUser>>['supabase'],
+    existing: ExistingMealRecordOwner | null
+) {
+    const name = await getProfileDisplayName(supabase, existing?.recorded_by)
 
     return {
         conflict: true,
@@ -46,10 +70,16 @@ export async function saveMealAction(
 ) {
     const { supabase, user } = await getAuthenticatedServerUser()
 
-    const existing = await getExistingMealRecordOwner(supabase, record.date)
+    const existingResult = await getExistingMealRecordOwner(supabase, record.date)
+
+    if (existingResult.error) {
+        return { success: false, error: existingResult.error.message || 'Nem sikerült lekérni a meglévő rekordot' }
+    }
+
+    const existing = existingResult.data
 
     if (existing && existing.recorded_by !== user.id) {
-        return buildConflictResponse(existing)
+        return buildConflictResponse(supabase, existing)
     }
 
     let mutation: PostgrestSingleResponse<{ created_at: string }>
@@ -64,8 +94,7 @@ export async function saveMealAction(
                 reason: record.reason,
                 team: record.team,
             })
-            .eq('date', record.date)
-            .eq('recorded_by', user.id)
+            .eq('id', existing.id)
             .select('created_at')
             .single()
     } else {
@@ -84,7 +113,7 @@ export async function saveMealAction(
     if (error) {
         if (error.code === '23505') {
             const conflictingRecord = await getExistingMealRecordOwner(supabase, record.date)
-            return buildConflictResponse(conflictingRecord)
+            return buildConflictResponse(supabase, conflictingRecord.data)
         }
 
         if (error.message?.includes('row-level security policy')) {
@@ -103,7 +132,7 @@ export async function deleteMealAction(date: string) {
 
     const { data: existing } = await supabase
         .from('meal_records')
-        .select('recorded_by')
+        .select('id, recorded_by')
         .eq('date', date)
         .maybeSingle()
 
@@ -118,7 +147,7 @@ export async function deleteMealAction(date: string) {
     const { error } = await supabase
         .from('meal_records')
         .delete()
-        .eq('date', date)
+        .eq('id', existing.id)
 
     if (error) {
         return { success: false, error: 'Adatbázis hiba a törlés során' }

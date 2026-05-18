@@ -94,24 +94,12 @@ function dataUrlToBlob(dataUrl: string) {
   return new Blob([decodeURIComponent(content)], { type: mimeType })
 }
 
-async function openImageInNewTab(imageUrl: string) {
-  const blobUrl = imageUrl.startsWith("data:")
+function openImageInCurrentTab(imageUrl: string) {
+  const nextUrl = imageUrl.startsWith("data:")
     ? URL.createObjectURL(dataUrlToBlob(imageUrl))
     : imageUrl
-  const openedWindow = window.open(blobUrl, "_blank", "noopener,noreferrer")
 
-  if (!openedWindow) {
-    if (imageUrl.startsWith("data:")) {
-      URL.revokeObjectURL(blobUrl)
-    }
-    throw new Error("A böngésző letiltotta az új lap megnyitását")
-  }
-
-  if (imageUrl.startsWith("data:")) {
-    setTimeout(() => {
-      URL.revokeObjectURL(blobUrl)
-    }, 60_000)
-  }
+  window.location.assign(nextUrl)
 }
 
 export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isDeletePending = false }: DayModalProps) {
@@ -212,13 +200,13 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
     }
   }
 
-  const handleOpenImage = async () => {
+  const handleOpenImage = () => {
     if (!mealImageUrl) {
       return
     }
 
     try {
-      await openImageInNewTab(mealImageUrl)
+      openImageInCurrentTab(mealImageUrl)
     } catch (error) {
       setImageError(error instanceof Error ? error.message : "Nem sikerült megnyitni a képet")
     }
@@ -362,7 +350,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
                 <button
                   type="button"
                   onClick={() => {
-                    void handleOpenImage()
+                    handleOpenImage()
                   }}
                   className="block w-full overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] cursor-zoom-in"
                 >
@@ -376,7 +364,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
 
               {mealImageUrl && (
                 <p className="text-xs text-[#6B7280]">
-                  Koppints vagy kattints a képre a teljes méretű kép új lapon való megnyitásához.
+                  Koppints vagy kattints a képre a teljes méretű kép megnyitásához.
                 </p>
               )}
             </div>

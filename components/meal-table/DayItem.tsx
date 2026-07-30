@@ -88,7 +88,7 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     />
                 </div>
             )}
-            <div className="flex items-center justify-between w-full">
+            <div className="flex items-center justify-between w-full relative z-10">
                 <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-[#1F2937]">
                         {formatDate(day.date)}
@@ -118,7 +118,7 @@ export function DayItem({ day, onClick }: DayItemProps) {
             </div>
 
             {!day.isHoliday && day.status !== "empty" ? (
-                <div className="w-full">
+                <div className="w-full relative z-10">
                     {day.status === "volt" && day.food && (
                         <h3 className="text-base font-bold text-gray-900 leading-tight">
                             {day.food}
@@ -137,17 +137,17 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     )}
                 </div>
             ) : day.isHoliday ? (
-                <p className="text-sm font-medium text-purple-700 italic">
+                <p className="text-sm font-medium text-purple-700 italic relative z-10">
                     {day.holidayName}
                 </p>
             ) : !isDisabled && (
-                <p className="text-sm text-amber-500 font-medium italic">
+                <p className="text-sm text-amber-500 font-medium italic relative z-10">
                     Nincs még rögzítve
                 </p>
             )}
 
             {day.recordedBy && !day.isHoliday && (
-                <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 pt-1 border-t border-black/5 w-full">
+                <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 pt-1 border-t border-black/5 w-full relative z-10">
                     <span className="truncate max-w-[150px]">{day.recordedBy}</span>
                     <span className="opacity-30">•</span>
                     <span>{day.recordedAt}</span>

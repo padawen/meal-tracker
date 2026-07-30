@@ -74,16 +74,8 @@ export function useMealData(): UseMealDataReturn {
 
     useEffect(() => {
         let isMounted = true;
-        let timeoutId: NodeJS.Timeout;
 
         const fetchInitialRecords = async () => {
-            timeoutId = setTimeout(() => {
-                if (isMounted) {
-                    console.warn('Initial fetch timeout - showing UI anyway');
-                    setLoading(false);
-                }
-            }, 3000);
-
             try {
                 const { start: startDate, end: endDate } = getInitialMealFetchRange(today)
                 const daysArray = await fetchDateRange(startDate, endDate);
@@ -96,14 +88,13 @@ export function useMealData(): UseMealDataReturn {
                 console.error('Critical fetch error:', error);
             } finally {
                 if (isMounted) {
-                    clearTimeout(timeoutId);
                     setLoading(false);
                 }
             }
         };
 
         fetchInitialRecords();
-        return () => { isMounted = false; clearTimeout(timeoutId); };
+        return () => { isMounted = false; };
     }, []);
 
     useEffect(() => {

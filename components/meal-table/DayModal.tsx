@@ -137,7 +137,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
   const [imageError, setImageError] = useState<string | null>(null)
   const [isPreparingImage, setIsPreparingImage] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
-  const [isLightboxOpen, setIsLightboxOpen] = useState(!!day.mealImageUrl)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [dragOffset, setDragOffset] = useState(0)
   const dragStartY = useRef<number | null>(null)
 
@@ -238,14 +238,16 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
     }
   }
 
-  // Read-only image viewer for non-editors with an image
-  if (!canEdit && day.mealImageUrl) {
+  const [showEditForm, setShowEditForm] = useState(false)
+
+  // Full-size image viewer modal by default when there is an image
+  if (day.mealImageUrl && !showEditForm) {
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
         <div
-          className="relative w-full max-w-md rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 overflow-hidden"
+          className="relative w-full max-w-md rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 overflow-hidden bg-black"
           style={{
             transform: `translateY(${dragOffset}px)`,
             transition: dragStartY.current !== null ? 'none' : 'transform 0.3s ease'
@@ -253,7 +255,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
         >
           {/* Drag handle */}
           <div
-            className="absolute top-0 inset-x-0 z-10 flex justify-center pt-3 pb-5 cursor-grab active:cursor-grabbing touch-none"
+            className="absolute top-0 inset-x-0 z-20 flex justify-center pt-3 pb-5 cursor-grab active:cursor-grabbing touch-none"
             onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
             onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
             onTouchEnd={handleDragEnd}
@@ -261,7 +263,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
             onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
             onMouseUp={handleDragEnd}
           >
-            <div className="w-16 h-2 rounded-full bg-white/60" />
+            <div className="w-16 h-2 rounded-full bg-white/60 shadow" />
           </div>
 
           {/* Hero image */}
@@ -273,17 +275,17 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
               style={{ maxHeight: "70vh" }}
             />
             {/* top dark fade for drag handle visibility */}
-            <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
+            <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10" />
             {/* bottom info overlay */}
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 pt-16">
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-5 pt-16 z-10">
               <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-white/60 text-xs mb-1">{formatDate(day.date)}</p>
+                  <p className="text-white/70 text-xs mb-1">{formatDate(day.date)}</p>
                   {day.food && (
                     <h2 className="text-white font-bold text-xl leading-tight">{day.food}</h2>
                   )}
                   {day.recordedBy && (
-                    <p className="text-white/50 text-xs mt-1.5">{day.recordedBy}{day.recordedAt ? ` · ${day.recordedAt}` : ""}</p>
+                    <p className="text-white/60 text-xs mt-1.5">{day.recordedBy}{day.recordedAt ? ` · ${day.recordedAt}` : ""}</p>
                   )}
                 </div>
                 {day.team && (
@@ -295,15 +297,23 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
             </div>
           </div>
 
-          {/* Close button */}
-          <div className="bg-white px-5 py-4">
+          {/* Buttons */}
+          <div className="bg-white px-5 py-4 flex gap-3">
             <button
               onClick={onClose}
-              className="w-full h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <X className="w-4 h-4" />
               Bezárás
             </button>
+            {canEdit && (
+              <button
+                onClick={() => setShowEditForm(true)}
+                className="flex-1 h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                Szerkesztés
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -459,17 +469,13 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
               )}
 
               {mealImageUrl && (
-                <button
-                  type="button"
-                  onClick={() => setIsLightboxOpen(true)}
-                  className="block w-full overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] cursor-zoom-in"
-                >
+                <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-black/5">
                   <img
                     src={mealImageUrl}
                     alt="Feltöltött ételfotó"
-                    className="block w-full h-auto max-h-[320px] object-cover"
+                    className="block w-full h-auto max-h-[320px] object-cover pointer-events-none"
                   />
-                </button>
+                </div>
               )}
 
               {isLightboxOpen && mealImageUrl && (

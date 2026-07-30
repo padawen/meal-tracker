@@ -43,6 +43,11 @@ export const metadata: Metadata = {
       },
     ],
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Étkezés nyilvántartó",
+  },
 }
 
 export const viewport: Viewport = {
@@ -50,6 +55,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
   themeColor: "#F9FAFB",
 }
 

@@ -96,7 +96,7 @@ export function useAuthSessionProfile() {
         }
 
         await loadProfile(session.user.id)
-        await syncAvatar(session.user)
+        syncAvatar(session.user).catch((err) => console.error('Failed background avatar sync:', err))
         subscribeToProfile(session.user.id)
       } catch (error) {
         console.error('Auth guard initialization failed:', error)

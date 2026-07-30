@@ -2,9 +2,7 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-
-import { supabase } from '@/lib/supabase/client'
-import type { AuthProfile } from '@/components/auth/types'
+import { useOptionalAuth } from '@/components/auth/AuthGuard'
 
 function isProtectedRoute(pathname: string) {
   return pathname === '/' || pathname.startsWith('/statistics') || pathname.startsWith('/admin')
@@ -21,108 +19,27 @@ function isPendingApprovalRoute(pathname: string) {
 export function ProfileRouteSync() {
   const pathname = usePathname()
   const router = useRouter()
+  const auth = useOptionalAuth()
 
   useEffect(() => {
-    let isMounted = true
-    let profileChannel: ReturnType<typeof supabase.channel> | null = null
+    if (!auth || auth.loading || !auth.profile) return
 
-    const syncRouteWithProfile = (profile: AuthProfile) => {
-      const isApproved = profile.is_admin || profile.is_approved
+    const { isApproved, isAdmin } = auth
 
-      if (!isApproved && isProtectedRoute(pathname) && !isPendingApprovalRoute(pathname)) {
-        router.refresh()
-        router.replace('/pending-approval')
-        return
-      }
-
-      if (isPendingApprovalRoute(pathname) && isApproved) {
-        router.refresh()
-        router.replace('/')
-        return
-      }
-
-      if (isAdminRoute(pathname) && !profile.is_admin) {
-        router.refresh()
-        router.replace('/')
-      }
+    if (!isApproved && isProtectedRoute(pathname) && !isPendingApprovalRoute(pathname)) {
+      router.replace('/pending-approval')
+      return
     }
 
-    const loadProfile = async (userId: string) => {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, avatar_url, is_admin, is_approved')
-        .eq('id', userId)
-        .maybeSingle<AuthProfile>()
-
-      if (error || !profile || !isMounted) {
-        return
-      }
-
-      syncRouteWithProfile(profile)
+    if (isPendingApprovalRoute(pathname) && isApproved) {
+      router.replace('/')
+      return
     }
 
-    const subscribeToProfile = (userId: string) => {
-      if (profileChannel) {
-        supabase.removeChannel(profileChannel)
-      }
-
-      profileChannel = supabase
-        .channel(`route-sync:profiles:id=eq.${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${userId}`,
-          },
-          async () => {
-            await loadProfile(userId)
-          }
-        )
-        .subscribe()
+    if (isAdminRoute(pathname) && !isAdmin) {
+      router.replace('/')
     }
-
-    const init = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session?.user || !isMounted) {
-        return
-      }
-
-      await loadProfile(session.user.id)
-      subscribeToProfile(session.user.id)
-    }
-
-    init().catch((error) => {
-      console.error('Profile route sync init failed:', error)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
-        if (profileChannel) {
-          supabase.removeChannel(profileChannel)
-          profileChannel = null
-        }
-        return
-      }
-
-      void loadProfile(session.user.id)
-      subscribeToProfile(session.user.id)
-    })
-
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-      if (profileChannel) {
-        supabase.removeChannel(profileChannel)
-      }
-    }
-  }, [pathname, router])
+  }, [auth, pathname, router])
 
   return null
 }

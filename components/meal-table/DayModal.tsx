@@ -166,6 +166,12 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
     setImageError(null)
   }, [day])
 
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("hu-HU", {
       year: "numeric",
@@ -247,7 +253,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
         >
           {/* Drag handle */}
           <div
-            className="absolute top-0 inset-x-0 z-10 flex justify-center pt-2.5 pb-4 cursor-grab active:cursor-grabbing touch-none"
+            className="absolute top-0 inset-x-0 z-10 flex justify-center pt-3 pb-5 cursor-grab active:cursor-grabbing touch-none"
             onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
             onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
             onTouchEnd={handleDragEnd}
@@ -255,7 +261,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
             onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
             onMouseUp={handleDragEnd}
           >
-            <div className="w-10 h-1 rounded-full bg-white/50" />
+            <div className="w-16 h-2 rounded-full bg-white/60" />
           </div>
 
           {/* Hero image */}
@@ -316,7 +322,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
         }}
       >
         <div
-          className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10 cursor-grab active:cursor-grabbing touch-none"
+          className="flex justify-center pt-3 pb-3 sticky top-0 bg-white z-10 cursor-grab active:cursor-grabbing touch-none"
           onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
           onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
           onTouchEnd={handleDragEnd}
@@ -324,7 +330,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
           onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
           onMouseUp={handleDragEnd}
         >
-          <div className="w-10 h-1 rounded-full bg-[#E5E7EB]" />
+          <div className="w-16 h-2 rounded-full bg-[#D1D5DB]" />
         </div>
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">

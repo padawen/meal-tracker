@@ -85,14 +85,7 @@ export function useMealData(): UseMealDataReturn {
             }, 3000);
 
             try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) {
-                    if (isMounted) setLoading(false);
-                    return;
-                }
-
                 const { start: startDate, end: endDate } = getInitialMealFetchRange(today)
-
                 const daysArray = await fetchDateRange(startDate, endDate);
 
                 if (isMounted) {
@@ -124,16 +117,12 @@ export function useMealData(): UseMealDataReturn {
 
                 try {
                     const { fetchAfter, fetchBefore, nextRange } = expandLoadedMealRange(loadedRange, requiredRange)
-                    let newDays: DayData[] = []
 
-                    if (fetchBefore) {
-                        newDays = await fetchDateRange(fetchBefore.start, fetchBefore.end)
-                    }
-
-                    if (fetchAfter) {
-                        const laterDays = await fetchDateRange(fetchAfter.start, fetchAfter.end)
-                        newDays = [...newDays, ...laterDays]
-                    }
+                    const [beforeDays, afterDays] = await Promise.all([
+                        fetchBefore ? fetchDateRange(fetchBefore.start, fetchBefore.end) : Promise.resolve([]),
+                        fetchAfter ? fetchDateRange(fetchAfter.start, fetchAfter.end) : Promise.resolve([]),
+                    ])
+                    const newDays = [...beforeDays, ...afterDays]
 
                     if (newDays.length > 0) {
                         setAllRecords(prev => mergeMealDayData(prev, newDays))

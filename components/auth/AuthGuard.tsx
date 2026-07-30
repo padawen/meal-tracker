@@ -37,6 +37,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
+export function useOptionalAuth() {
+    return useContext(AuthContext)
+}
+
 export function useAuth() {
     const value = useContext(AuthContext)
 

@@ -50,33 +50,6 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
     return { days, records, holidaysData, profiles }
   }, [])
 
-  useEffect(() => {
-    let isMounted = true
-
-    const initCache = async () => {
-      try {
-        const today = new Date()
-        const { start, end } = getInitialMealFetchRange(today)
-        const { days, records, holidaysData, profiles } = await fetchDateRange(start, end)
-
-        if (isMounted) {
-          setAllRecords(days)
-          setRawRecords(records)
-          setHolidays(holidaysData)
-          setProfilesMap(profiles)
-          loadedRangeRef.current = { start, end }
-        }
-      } catch (err) {
-        console.error("Failed to initialize meal cache:", err)
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
-
-    initCache()
-    return () => { isMounted = false }
-  }, [fetchDateRange])
-
   const ensureRangeLoaded = useCallback(
     async (requiredStart: Date, requiredEnd: Date) => {
       if (!loadedRangeRef.current || loadingRangeRef.current) return
@@ -126,6 +99,38 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
     },
     [fetchDateRange]
   )
+
+  useEffect(() => {
+    let isMounted = true
+
+    const initCache = async () => {
+      try {
+        const today = new Date()
+        const { start, end } = getInitialMealFetchRange(today)
+        const { days, records, holidaysData, profiles } = await fetchDateRange(start, end)
+
+        if (isMounted) {
+          setAllRecords(days)
+          setRawRecords(records)
+          setHolidays(holidaysData)
+          setProfilesMap(profiles)
+          loadedRangeRef.current = { start, end }
+          setLoading(false)
+
+          // Background prefetch for current month range without blocking UI
+          const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+          const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+          ensureRangeLoaded(currentMonthStart, currentMonthEnd)
+        }
+      } catch (err) {
+        console.error("Failed to initialize meal cache:", err)
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    initCache()
+    return () => { isMounted = false }
+  }, [ensureRangeLoaded, fetchDateRange])
 
   useEffect(() => {
     const channel = supabase

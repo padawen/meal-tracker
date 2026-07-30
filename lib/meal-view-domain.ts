@@ -7,10 +7,13 @@ interface DateRange {
 }
 
 export function getInitialMealFetchRange(today: Date): DateRange {
-  const rangeStart = new Date(today.getFullYear(), today.getMonth() - 2, 1)
+  const weekStart = getWeekStartForDate(today, 0)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+
   return {
-    start: rangeStart < MEAL_TRACKING_START ? new Date(MEAL_TRACKING_START) : rangeStart,
-    end: new Date(today.getFullYear(), today.getMonth() + 2, 0),
+    start: weekStart < MEAL_TRACKING_START ? new Date(MEAL_TRACKING_START) : weekStart,
+    end: weekEnd,
   }
 }
 

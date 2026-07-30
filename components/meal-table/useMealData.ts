@@ -46,118 +46,26 @@ interface UseMealDataReturn {
     formatDateStr: (date: Date) => string
 }
 
+import { useMealDataContext } from "./MealDataContext"
+
 export function useMealData(): UseMealDataReturn {
     const router = useRouter()
-    const [loading, setLoading] = useState(true)
-    const [allRecords, setAllRecords] = useState<DayData[]>([])
+    const { loading, allRecords, setAllRecords, ensureRangeLoaded } = useMealDataContext()
     const [weekOffset, setWeekOffset] = useState(0)
     const [monthOffset, setMonthOffset] = useState(0)
     const [yearOffset, setYearOffset] = useState(0)
 
-    const loadedRangeRef = useRef<{ start: Date; end: Date } | null>(null)
-    const loadingRangeRef = useRef(false)
-    const lastRefreshAtRef = useRef(0)
-
-    const today = new Date()
+    const today = useMemo(() => new Date(), [])
     const getWeekStart = useCallback((offset: number) => getWeekStartForDate(today, offset), [today])
     const canNavigateBack = useCallback(
         (view: "week" | "month" | "year") => canNavigateMealBack(view, today, weekOffset, monthOffset, yearOffset),
         [monthOffset, today, weekOffset, yearOffset]
     )
 
-    const fetchDateRange = useCallback(async (startDate: Date, endDate: Date): Promise<DayData[]> => {
-        const { records, holidays } = await fetchMealRangeData(startDate, endDate)
-        const profilesMap = await fetchProfilesByIds(records.map((record) => record.recorded_by))
-
-        return buildMealDayDataRange(startDate, endDate, records, holidays, profilesMap)
-    }, [])
-
     useEffect(() => {
-        let isMounted = true;
-
-        const fetchInitialRecords = async () => {
-            try {
-                const { start: startDate, end: endDate } = getInitialMealFetchRange(today)
-                const daysArray = await fetchDateRange(startDate, endDate);
-
-                if (isMounted) {
-                    setAllRecords(daysArray);
-                    loadedRangeRef.current = { start: startDate, end: endDate };
-                }
-            } catch (error) {
-                console.error('Critical fetch error:', error);
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchInitialRecords();
-        return () => { isMounted = false; };
-    }, []);
-
-    useEffect(() => {
-        const checkAndLoadMoreData = async () => {
-            if (!loadedRangeRef.current || loadingRangeRef.current) return
-            const requiredRange = getRequiredMealRange(today, weekOffset, monthOffset, yearOffset)
-            const loadedRange = loadedRangeRef.current
-
-            if (requiredRange.start < loadedRange.start || requiredRange.end > loadedRange.end) {
-                loadingRangeRef.current = true
-
-                try {
-                    const { fetchAfter, fetchBefore, nextRange } = expandLoadedMealRange(loadedRange, requiredRange)
-
-                    const [beforeDays, afterDays] = await Promise.all([
-                        fetchBefore ? fetchDateRange(fetchBefore.start, fetchBefore.end) : Promise.resolve([]),
-                        fetchAfter ? fetchDateRange(fetchAfter.start, fetchAfter.end) : Promise.resolve([]),
-                    ])
-                    const newDays = [...beforeDays, ...afterDays]
-
-                    if (newDays.length > 0) {
-                        setAllRecords(prev => mergeMealDayData(prev, newDays))
-                    }
-                    loadedRangeRef.current = nextRange
-                } catch (error) {
-                    console.error('Error loading more data:', error)
-                } finally {
-                    loadingRangeRef.current = false
-                }
-            }
-        }
-
-        checkAndLoadMoreData()
-    }, [weekOffset, monthOffset, yearOffset])
-
-    useEffect(() => {
-        const channel = supabase.channel('meal_records_changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_records' }, async (payload) => {
-                const dateStr = payload.new ? (payload.new as any).date : (payload.old as any)?.date;
-                if (!dateStr) return;
-                
-                const d = parseDateOnly(dateStr)
-                
-                try {
-                    const newData = await fetchDateRange(d, d);
-                    
-                    if (newData && newData.length > 0) {
-                        setAllRecords(prev => replaceMealDay(prev, newData[0]));
-                    }
-
-                    const now = Date.now()
-                    if (now - lastRefreshAtRef.current > 1000) {
-                        lastRefreshAtRef.current = now
-                        router.refresh()
-                    }
-                } catch (error) {
-                    console.error('Error fetching realtime update:', error);
-                }
-            })
-            .subscribe()
-
-        return () => { supabase.removeChannel(channel) }
-    }, [fetchDateRange, router])
+        const requiredRange = getRequiredMealRange(today, weekOffset, monthOffset, yearOffset)
+        ensureRangeLoaded(requiredRange.start, requiredRange.end)
+    }, [ensureRangeLoaded, monthOffset, today, weekOffset, yearOffset])
 
     const recordsByDate = useMemo(
         () => new Map(allRecords.map((day) => [formatDateOnly(day.date), day])),

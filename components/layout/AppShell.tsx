@@ -26,10 +26,14 @@ function ShellContent({ children }: { children: ReactNode }) {
   )
 }
 
+import { MealDataProvider } from '@/components/meal-table/MealDataContext'
+
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <AuthGuard>
-      <ShellContent>{children}</ShellContent>
+      <MealDataProvider>
+        <ShellContent>{children}</ShellContent>
+      </MealDataProvider>
     </AuthGuard>
   )
 }

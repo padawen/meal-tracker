@@ -43,35 +43,16 @@ interface UseStatsDataReturn {
     totalHolidaysOfYear: number
 }
 
-export function useStatsData(): UseStatsDataReturn {
-    const [loading, setLoading] = useState(true)
-    const [rawRecords, setRawRecords] = useState<MealRecordRow[]>([])
-    const [holidays, setHolidays] = useState<HolidayRow[]>([])
-    const [allUsers, setAllUsers] = useState<Map<string, ProfileSummary>>(new Map())
+import { useMealDataContext } from "@/components/meal-table/MealDataContext"
 
-    const today = new Date()
+export function useStatsData(): UseStatsDataReturn {
+    const { loading, rawRecords, holidays, profilesMap: allUsers, ensureRangeLoaded } = useMealDataContext()
+    const today = useMemo(() => new Date(), [])
 
     useEffect(() => {
-        const fetchStatistics = async () => {
-            try {
-                const { start: fetchStart, end: fetchEnd } = getStatisticsFetchRange(today)
-
-                const { records, holidays: holidaysData } = await fetchMealRangeData(fetchStart, fetchEnd)
-
-                setRawRecords(records)
-                setHolidays(holidaysData)
-
-                const profilesMap = await fetchProfilesByIds(records.map((record) => record.recorded_by))
-                setAllUsers(profilesMap)
-            } catch (error) {
-                console.error('Error fetching statistics:', error)
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        fetchStatistics()
-    }, [])
+        const { start, end } = getStatisticsFetchRange(today)
+        ensureRangeLoaded(start, end)
+    }, [ensureRangeLoaded, today])
     const allDays = useMemo(() => {
         const { start, end } = getStatisticsFetchRange(today)
         return buildStatsDayRange(start, end, rawRecords, holidays)

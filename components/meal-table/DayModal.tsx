@@ -263,7 +263,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
             onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
             onMouseUp={handleDragEnd}
           >
-            <div className="w-16 h-2 rounded-full bg-white/60 shadow" />
+            <div className="w-10 h-1 rounded-full bg-white/60 shadow" />
           </div>
 
           {/* Hero image */}
@@ -340,7 +340,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
           onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
           onMouseUp={handleDragEnd}
         >
-          <div className="w-16 h-2 rounded-full bg-[#D1D5DB]" />
+          <div className="w-10 h-1 rounded-full bg-[#D1D5DB]" />
         </div>
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">

@@ -137,6 +137,26 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
   const [imageError, setImageError] = useState<string | null>(null)
   const [isPreparingImage, setIsPreparingImage] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(!!day.mealImageUrl)
+  const [dragOffset, setDragOffset] = useState(0)
+  const dragStartY = useRef<number | null>(null)
+
+  const handleDragStart = (clientY: number) => {
+    dragStartY.current = clientY
+  }
+  const handleDragMove = (clientY: number) => {
+    if (dragStartY.current === null) return
+    const delta = clientY - dragStartY.current
+    if (delta > 0) setDragOffset(delta)
+  }
+  const handleDragEnd = () => {
+    if (dragOffset > 80) {
+      onClose()
+    } else {
+      setDragOffset(0)
+    }
+    dragStartY.current = null
+  }
 
   useEffect(() => {
     setHadFood(day.status === "volt" ? true : day.status === "nem" ? false : null)
@@ -212,12 +232,98 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
     }
   }
 
+  // Read-only image viewer for non-editors with an image
+  if (!canEdit && day.mealImageUrl) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+        <div
+          className="relative w-full max-w-md rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 overflow-hidden"
+          style={{
+            transform: `translateY(${dragOffset}px)`,
+            transition: dragStartY.current !== null ? 'none' : 'transform 0.3s ease'
+          }}
+        >
+          {/* Drag handle */}
+          <div
+            className="absolute top-0 inset-x-0 z-10 flex justify-center pt-2.5 pb-4 cursor-grab active:cursor-grabbing touch-none"
+            onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+            onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+            onTouchEnd={handleDragEnd}
+            onMouseDown={(e) => handleDragStart(e.clientY)}
+            onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
+            onMouseUp={handleDragEnd}
+          >
+            <div className="w-10 h-1 rounded-full bg-white/50" />
+          </div>
+
+          {/* Hero image */}
+          <div className="relative">
+            <img
+              src={day.mealImageUrl}
+              alt="Ételfotó"
+              className="w-full object-cover"
+              style={{ maxHeight: "70vh" }}
+            />
+            {/* top dark fade for drag handle visibility */}
+            <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
+            {/* bottom info overlay */}
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 pt-16">
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-white/60 text-xs mb-1">{formatDate(day.date)}</p>
+                  {day.food && (
+                    <h2 className="text-white font-bold text-xl leading-tight">{day.food}</h2>
+                  )}
+                  {day.recordedBy && (
+                    <p className="text-white/50 text-xs mt-1.5">{day.recordedBy}{day.recordedAt ? ` · ${day.recordedAt}` : ""}</p>
+                  )}
+                </div>
+                {day.team && (
+                  <div className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow ${day.team === "A" ? "bg-blue-600 text-white" : "bg-pink-600 text-white"}`}>
+                    {day.team === "A" ? "Zs csapat" : "R csapat"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Close button */}
+          <div className="bg-white px-5 py-4">
+            <button
+              onClick={onClose}
+              className="w-full h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              Bezárás
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={isBusy ? undefined : onClose} />
 
-      <div className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
+      <div
+        className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto"
+        style={{
+          transform: `translateY(${dragOffset}px)`,
+          transition: dragStartY.current !== null ? 'none' : 'transform 0.3s ease'
+        }}
+      >
+        <div
+          className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10 cursor-grab active:cursor-grabbing touch-none"
+          onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
+          onMouseDown={(e) => handleDragStart(e.clientY)}
+          onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+        >
           <div className="w-10 h-1 rounded-full bg-[#E5E7EB]" />
         </div>
 
@@ -349,9 +455,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
               {mealImageUrl && (
                 <button
                   type="button"
-                  onClick={() => {
-                    handleOpenImage()
-                  }}
+                  onClick={() => setIsLightboxOpen(true)}
                   className="block w-full overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] cursor-zoom-in"
                 >
                   <img
@@ -362,10 +466,18 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
                 </button>
               )}
 
-              {mealImageUrl && (
-                <p className="text-xs text-[#6B7280]">
-                  Koppints vagy kattints a képre a teljes méretű kép megnyitásához.
-                </p>
+              {isLightboxOpen && mealImageUrl && (
+                <div
+                  className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200"
+                  onClick={() => setIsLightboxOpen(false)}
+                >
+                  <img
+                    src={mealImageUrl}
+                    alt="Ételfotó"
+                    className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
               )}
             </div>
           )}

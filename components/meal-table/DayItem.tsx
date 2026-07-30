@@ -79,6 +79,15 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     : `${getStatusBg(day.status)} ${getTeamBorder(day.team)}`
                 } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
         >
+            {day.mealImageUrl && !day.isHoliday && (
+                <div className="absolute inset-0 z-0 pointer-events-none rounded-2xl overflow-hidden" aria-hidden="true">
+                    <img
+                        src={day.mealImageUrl}
+                        alt=""
+                        className="h-full w-full object-cover opacity-[0.22]"
+                    />
+                </div>
+            )}
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-[#1F2937]">

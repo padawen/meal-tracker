@@ -13,6 +13,8 @@ import { Nav } from "@/components/shared"
 import { ViewToggle } from "./ViewToggle"
 import { DayItem, DayData } from "./DayItem"
 import { useMealData } from "./useMealData"
+import { MEAL_TRACKING_START } from "@/lib/meal-domain"
+import { getWeekStartForDate } from "@/lib/meal-view-domain"
 
 function normalizeSearchText(value: string) {
     return value
@@ -34,17 +36,18 @@ export function MealTable() {
     const [view, setView] = useState<"week" | "month" | "year">("week")
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
+    const [isImageGalleryLoading, setIsImageGalleryLoading] = useState(false)
     const { profile, user } = useAuth()
     const router = useRouter()
     const { toast } = useToast()
 
     const {
-        loading, allRecords, setAllRecords,
+        viewLoading, allRecords, setAllRecords, ensureRangeLoaded,
         currentWeekDays, currentMonthDays, currentYearDays,
         weekStats, monthStats, totalEmptyDays,
         weekOffset, monthOffset, yearOffset, setWeekOffset, setMonthOffset, setYearOffset,
         getWeekStart, canNavigateBack, formatDateStr
-    } = useMealData()
+    } = useMealData(view)
 
     const today = new Date()
     const { confettiVariant, handleDelete, handleSave, pendingAction } = useMealTableMutations({
@@ -83,10 +86,28 @@ export function MealTable() {
             toast({ title: "Nem módosítható", description: "Jövőbeli dátumokat nem lehet módosítani", variant: "destructive" })
             return
         }
+        if (day.status === "volt" && day.mealImageUrl) {
+            setIsImageGalleryLoading(true)
+            void ensureRangeLoaded(
+                MEAL_TRACKING_START,
+                new Date(today.getFullYear(), 11, 31)
+            ).finally(() => {
+                setSelectedDay(day)
+                setIsImageGalleryLoading(false)
+            })
+            return
+        }
+
         setSelectedDay(day)
     }
 
     const displayDays = view === "week" ? currentWeekDays : view === "month" ? currentMonthDays : currentYearDays
+    const imageDays = useMemo(
+        () => allRecords
+            .filter((day) => day.status === "volt" && Boolean(day.mealImageUrl))
+            .sort((a, b) => a.date.getTime() - b.date.getTime()),
+        [allRecords]
+    )
     const normalizedSearch = view === "year" ? normalizeSearchText(searchQuery) : ""
     const filteredDays = useMemo(() => {
         if (!normalizedSearch) {
@@ -115,6 +136,34 @@ export function MealTable() {
             return normalizedDayText.includes(normalizedSearch)
         })
     }, [displayDays, normalizedSearch])
+
+    const handleImageNavigate = (direction: "previous" | "next") => {
+        if (!selectedDay) return
+
+        const currentImageIndex = imageDays.findIndex((day) => day.date.getTime() === selectedDay.date.getTime())
+        const nextImageIndex = currentImageIndex + (direction === "previous" ? -1 : 1)
+        const nextImageDay = imageDays[nextImageIndex]
+
+        if (!nextImageDay) return
+
+        setSelectedDay(nextImageDay)
+
+        if (view === "week") {
+            const currentWeekStart = getWeekStartForDate(today)
+            const targetWeekStart = getWeekStartForDate(nextImageDay.date)
+            const weekOffset = Math.round(
+                (targetWeekStart.getTime() - currentWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)
+            )
+            setWeekOffset(weekOffset)
+        } else if (view === "month") {
+            const monthOffset =
+                (nextImageDay.date.getFullYear() - today.getFullYear()) * 12 +
+                nextImageDay.date.getMonth() - today.getMonth()
+            setMonthOffset(monthOffset)
+        } else {
+            setYearOffset(nextImageDay.date.getFullYear() - today.getFullYear())
+        }
+    }
 
     const getPeriodLabel = () => {
         if (view === "week") {
@@ -184,7 +233,7 @@ export function MealTable() {
         setYearOffset(0)
     }
 
-    if (loading) {
+    if (viewLoading || isImageGalleryLoading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -284,6 +333,8 @@ export function MealTable() {
                     onDelete={handleDelete}
                     isSaving={pendingAction === "save"}
                     isDeletePending={pendingAction === "delete"}
+                    imageDays={imageDays}
+                    onImageNavigate={handleImageNavigate}
                 />
             )}
         </div>

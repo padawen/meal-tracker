@@ -16,10 +16,15 @@ import {
 import {
   expandLoadedMealRange,
   getInitialMealFetchRange,
-  getRequiredMealRange,
+  getMealPrefetchRange,
   mergeMealDayData,
   replaceMealDay,
 } from "@/lib/meal-view-domain"
+
+interface LoadedMealRange {
+  start: Date
+  end: Date
+}
 
 interface MealDataContextValue {
   loading: boolean
@@ -27,6 +32,7 @@ interface MealDataContextValue {
   rawRecords: MealRecordRow[]
   holidays: HolidayRow[]
   profilesMap: Map<string, ProfileSummary>
+  loadedRange: LoadedMealRange | null
   setAllRecords: React.Dispatch<React.SetStateAction<DayData[]>>
   ensureRangeLoaded: (requiredStart: Date, requiredEnd: Date) => Promise<void>
 }
@@ -39,9 +45,11 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
   const [rawRecords, setRawRecords] = useState<MealRecordRow[]>([])
   const [holidays, setHolidays] = useState<HolidayRow[]>([])
   const [profilesMap, setProfilesMap] = useState<Map<string, ProfileSummary>>(new Map())
+  const [loadedRange, setLoadedRange] = useState<LoadedMealRange | null>(null)
 
   const loadedRangeRef = useRef<{ start: Date; end: Date } | null>(null)
-  const loadingRangeRef = useRef(false)
+  const pendingRangeRef = useRef<LoadedMealRange | null>(null)
+  const rangeLoadPromiseRef = useRef<Promise<void> | null>(null)
 
   const fetchDateRange = useCallback(async (startDate: Date, endDate: Date): Promise<{ days: DayData[]; records: MealRecordRow[]; holidaysData: HolidayRow[]; profiles: Map<string, ProfileSummary> }> => {
     const { records, holidays: holidaysData } = await fetchMealRangeData(startDate, endDate)
@@ -52,50 +60,84 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
 
   const ensureRangeLoaded = useCallback(
     async (requiredStart: Date, requiredEnd: Date) => {
-      if (!loadedRangeRef.current || loadingRangeRef.current) return
-      const loadedRange = loadedRangeRef.current
-
-      if (requiredStart < loadedRange.start || requiredEnd > loadedRange.end) {
-        loadingRangeRef.current = true
-
-        try {
-          const requiredRange = { start: requiredStart, end: requiredEnd }
-          const { fetchAfter, fetchBefore, nextRange } = expandLoadedMealRange(loadedRange, requiredRange)
-
-          const [beforeRes, afterRes] = await Promise.all([
-            fetchBefore ? fetchDateRange(fetchBefore.start, fetchBefore.end) : Promise.resolve(null),
-            fetchAfter ? fetchDateRange(fetchAfter.start, fetchAfter.end) : Promise.resolve(null),
-          ])
-
-          const newDays = [...(beforeRes?.days || []), ...(afterRes?.days || [])]
-          const newRecords = [...(beforeRes?.records || []), ...(afterRes?.records || [])]
-          const newHolidays = [...(beforeRes?.holidaysData || []), ...(afterRes?.holidaysData || [])]
-
-          if (newDays.length > 0) {
-            setAllRecords((prev) => mergeMealDayData(prev, newDays))
+      const currentPendingRange = pendingRangeRef.current
+      pendingRangeRef.current = currentPendingRange
+        ? {
+            start: requiredStart < currentPendingRange.start ? requiredStart : currentPendingRange.start,
+            end: requiredEnd > currentPendingRange.end ? requiredEnd : currentPendingRange.end,
           }
-          if (newRecords.length > 0) {
-            setRawRecords((prev) => [...prev, ...newRecords])
-          }
-          if (newHolidays.length > 0) {
-            setHolidays((prev) => [...prev, ...newHolidays])
-          }
-          if (beforeRes?.profiles || afterRes?.profiles) {
-            setProfilesMap((prev) => {
-              const next = new Map(prev)
-              beforeRes?.profiles.forEach((v, k) => next.set(k, v))
-              afterRes?.profiles.forEach((v, k) => next.set(k, v))
-              return next
-            })
+        : { start: requiredStart, end: requiredEnd }
+
+      if (rangeLoadPromiseRef.current) {
+        return rangeLoadPromiseRef.current
+      }
+
+      const loadPendingRanges = async () => {
+        while (pendingRangeRef.current) {
+          const requiredRange = pendingRangeRef.current
+          pendingRangeRef.current = null
+
+          const currentLoadedRange = loadedRangeRef.current
+          if (!currentLoadedRange) {
+            pendingRangeRef.current = requiredRange
+            break
           }
 
-          loadedRangeRef.current = nextRange
-        } catch (err) {
-          console.error("Error expanding meal data range:", err)
-        } finally {
-          loadingRangeRef.current = false
+          if (requiredRange.start >= currentLoadedRange.start && requiredRange.end <= currentLoadedRange.end) {
+            continue
+          }
+
+          try {
+            const { fetchAfter, fetchBefore, nextRange } = expandLoadedMealRange(currentLoadedRange, requiredRange)
+
+            const [beforeRes, afterRes] = await Promise.all([
+              fetchBefore ? fetchDateRange(fetchBefore.start, fetchBefore.end) : Promise.resolve(null),
+              fetchAfter ? fetchDateRange(fetchAfter.start, fetchAfter.end) : Promise.resolve(null),
+            ])
+
+            const newDays = [...(beforeRes?.days || []), ...(afterRes?.days || [])]
+            const newRecords = [...(beforeRes?.records || []), ...(afterRes?.records || [])]
+            const newHolidays = [...(beforeRes?.holidaysData || []), ...(afterRes?.holidaysData || [])]
+
+            if (newDays.length > 0) {
+              setAllRecords((prev) => mergeMealDayData(prev, newDays))
+            }
+            if (newRecords.length > 0) {
+              setRawRecords((prev) => {
+                const recordsByDate = new Map(prev.map((record) => [record.date, record]))
+                newRecords.forEach((record) => recordsByDate.set(record.date, record))
+                return Array.from(recordsByDate.values())
+              })
+            }
+            if (newHolidays.length > 0) {
+              setHolidays((prev) => {
+                const holidaysByDate = new Map(prev.map((holiday) => [holiday.date, holiday]))
+                newHolidays.forEach((holiday) => holidaysByDate.set(holiday.date, holiday))
+                return Array.from(holidaysByDate.values())
+              })
+            }
+            if (beforeRes?.profiles || afterRes?.profiles) {
+              setProfilesMap((prev) => {
+                const next = new Map(prev)
+                beforeRes?.profiles.forEach((v, k) => next.set(k, v))
+                afterRes?.profiles.forEach((v, k) => next.set(k, v))
+                return next
+              })
+            }
+
+            loadedRangeRef.current = nextRange
+            setLoadedRange(nextRange)
+          } catch (err) {
+            console.error("Error expanding meal data range:", err)
+          }
         }
       }
+
+      const promise = loadPendingRanges().finally(() => {
+        rangeLoadPromiseRef.current = null
+      })
+      rangeLoadPromiseRef.current = promise
+      return promise
     },
     [fetchDateRange]
   )
@@ -115,12 +157,12 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
           setHolidays(holidaysData)
           setProfilesMap(profiles)
           loadedRangeRef.current = { start, end }
+          setLoadedRange({ start, end })
           setLoading(false)
 
-          // Background prefetch for current month range without blocking UI
-          const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-          const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-          ensureRangeLoaded(currentMonthStart, currentMonthEnd)
+          // Keep the first paint fast, then warm a four-week navigation window in the background.
+          const prefetchRange = getMealPrefetchRange(today)
+          ensureRangeLoaded(prefetchRange.start, prefetchRange.end)
         }
       } catch (err) {
         console.error("Failed to initialize meal cache:", err)
@@ -173,6 +215,7 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
         rawRecords,
         holidays,
         profilesMap,
+        loadedRange,
         setAllRecords,
         ensureRangeLoaded,
       }}

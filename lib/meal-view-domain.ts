@@ -17,27 +17,76 @@ export function getInitialMealFetchRange(today: Date): DateRange {
   }
 }
 
-export function getRequiredMealRange(today: Date, weekOffset: number, monthOffset: number, yearOffset: number): DateRange {
-  if (yearOffset !== 0) {
-    const targetYear = today.getFullYear() + yearOffset
+export function getMealPrefetchRange(today: Date): DateRange {
+  return getMealWeekPrefetchRange(today, 0)
+}
+
+export function getMealViewPrefetchRange(
+  today: Date,
+  view: 'week' | 'month' | 'year',
+  offset: number
+): DateRange {
+  if (view === 'year') {
+    const targetYear = today.getFullYear() + offset
     return clampRangeStart({
       start: new Date(targetYear - 1, 0, 1),
-      end: new Date(targetYear + 1, 11, 31),
+      end: new Date(targetYear + 2, 0, 0),
     })
   }
 
-  if (monthOffset !== 0) {
-    const targetMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
+  if (view === 'month') {
+    const targetMonth = new Date(today.getFullYear(), today.getMonth() + offset, 1)
     return clampRangeStart({
-      start: new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 3, 1),
-      end: new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 4, 0),
+      start: new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 1, 1),
+      end: new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 2, 0),
     })
   }
 
-  const weekStart = getWeekStartForDate(today, weekOffset)
+  return getMealWeekPrefetchRange(today, offset)
+}
+
+function getMealWeekPrefetchRange(today: Date, weekOffset: number): DateRange {
+  const currentWeekStart = getWeekStartForDate(today, weekOffset)
+  const prefetchStart = new Date(currentWeekStart)
+  prefetchStart.setDate(prefetchStart.getDate() - 7)
+
+  const prefetchEnd = new Date(prefetchStart)
+  prefetchEnd.setDate(prefetchStart.getDate() + 4 * 7 - 1)
+
   return clampRangeStart({
-    start: new Date(weekStart.getFullYear(), weekStart.getMonth() - 3, 1),
-    end: new Date(weekStart.getFullYear(), weekStart.getMonth() + 4, 0),
+    start: prefetchStart,
+    end: prefetchEnd,
+  })
+}
+
+export function getRequiredMealRange(
+  today: Date,
+  view: 'week' | 'month' | 'year',
+  offset: number
+): DateRange {
+  if (view === 'year') {
+    const targetYear = today.getFullYear() + offset
+    return clampRangeStart({
+      start: new Date(targetYear, 0, 1),
+      end: new Date(targetYear, 11, 31),
+    })
+  }
+
+  if (view === 'month') {
+    const targetMonth = new Date(today.getFullYear(), today.getMonth() + offset, 1)
+    return clampRangeStart({
+      start: new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1),
+      end: new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0),
+    })
+  }
+
+  const weekStart = getWeekStartForDate(today, offset)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+
+  return clampRangeStart({
+    start: weekStart,
+    end: weekEnd,
   })
 }
 
@@ -142,12 +191,8 @@ export function expandLoadedMealRange(loadedRange: DateRange, requiredRange: Dat
   const shouldFetchBefore = requiredRange.start < loadedRange.start
   const shouldFetchAfter = requiredRange.end > loadedRange.end
 
-  const nextStart = shouldFetchBefore
-    ? new Date(requiredRange.start.getFullYear(), requiredRange.start.getMonth() - 1, 1)
-    : loadedRange.start
-  const nextEnd = shouldFetchAfter
-    ? new Date(requiredRange.end.getFullYear(), requiredRange.end.getMonth() + 1, 0)
-    : loadedRange.end
+  const nextStart = shouldFetchBefore ? new Date(requiredRange.start) : new Date(loadedRange.start)
+  const nextEnd = shouldFetchAfter ? new Date(requiredRange.end) : new Date(loadedRange.end)
 
   if (nextStart < MEAL_TRACKING_START) {
     nextStart.setTime(MEAL_TRACKING_START.getTime())

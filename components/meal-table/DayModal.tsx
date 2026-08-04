@@ -2,7 +2,7 @@
 
 import type { ChangeEvent } from "react"
 import { useEffect, useRef, useState } from "react"
-import { X, Check, XIcon, Trash2, ImagePlus, Trash } from "lucide-react"
+import { X, Check, XIcon, Trash2, ImagePlus, Trash, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,6 +36,8 @@ interface DayModalProps {
   onDelete?: (day: DayData) => void
   isSaving?: boolean
   isDeletePending?: boolean
+  imageDays?: DayData[]
+  onImageNavigate?: (direction: "previous" | "next") => void
 }
 
 async function resizeImageToDataUrl(file: File) {
@@ -102,7 +104,16 @@ function openImageInCurrentTab(imageUrl: string) {
   window.location.assign(nextUrl)
 }
 
-export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isDeletePending = false }: DayModalProps) {
+export function DayModal({
+  day,
+  onClose,
+  onSave,
+  onDelete,
+  isSaving = false,
+  isDeletePending = false,
+  imageDays = [],
+  onImageNavigate,
+}: DayModalProps) {
   const { user } = useAuth()
   const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
   const isBusy = isSaving || isDeletePending
@@ -140,22 +151,31 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [dragOffset, setDragOffset] = useState(0)
   const dragStartY = useRef<number | null>(null)
+  const dragOffsetRef = useRef(0)
+  const dragDismissThreshold = 400
 
   const handleDragStart = (clientY: number) => {
     dragStartY.current = clientY
+    dragOffsetRef.current = 0
+    setDragOffset(0)
   }
   const handleDragMove = (clientY: number) => {
     if (dragStartY.current === null) return
     const delta = clientY - dragStartY.current
-    if (delta > 0) setDragOffset(delta)
+    const nextOffset = Math.max(0, delta)
+    dragOffsetRef.current = nextOffset
+    setDragOffset(nextOffset)
   }
   const handleDragEnd = () => {
-    if (dragOffset > 80) {
+    const shouldDismiss = dragOffsetRef.current >= dragDismissThreshold
+    dragStartY.current = null
+    dragOffsetRef.current = 0
+
+    if (shouldDismiss) {
       onClose()
     } else {
       setDragOffset(0)
     }
-    dragStartY.current = null
   }
 
   useEffect(() => {
@@ -240,6 +260,50 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
 
   const [showEditForm, setShowEditForm] = useState(false)
 
+  const imageIndex = imageDays.findIndex((imageDay) => imageDay.date.getTime() === day.date.getTime())
+  const previousImageDay = imageIndex > 0 ? imageDays[imageIndex - 1] : undefined
+  const nextImageDay = imageIndex >= 0 ? imageDays[imageIndex + 1] : undefined
+  const canMovePrevious = Boolean(previousImageDay)
+  const canMoveNext = Boolean(nextImageDay)
+
+  useEffect(() => {
+    if (!day.mealImageUrl || showEditForm || (!canMovePrevious && !canMoveNext)) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose()
+        return
+      }
+
+      if (event.key === "ArrowLeft" && canMovePrevious) {
+        event.preventDefault()
+        onImageNavigate?.("previous")
+      }
+
+      if (event.key === "ArrowRight" && canMoveNext) {
+        event.preventDefault()
+        onImageNavigate?.("next")
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [canMoveNext, canMovePrevious, day.mealImageUrl, onClose, onImageNavigate, showEditForm])
+
+  useEffect(() => {
+    const adjacentImageUrls = [previousImageDay?.mealImageUrl, nextImageDay?.mealImageUrl].filter(
+      (imageUrl): imageUrl is string => Boolean(imageUrl)
+    )
+
+    adjacentImageUrls.forEach((imageUrl) => {
+      const image = new Image()
+      image.decoding = "async"
+      image.src = imageUrl
+    })
+  }, [nextImageDay?.mealImageUrl, previousImageDay?.mealImageUrl])
+
   // Full-size image viewer modal by default when there is an image
   if (day.mealImageUrl && !showEditForm) {
     return (
@@ -259,6 +323,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
             onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
             onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
             onTouchEnd={handleDragEnd}
+            onTouchCancel={handleDragEnd}
             onMouseDown={(e) => handleDragStart(e.clientY)}
             onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
             onMouseUp={handleDragEnd}
@@ -267,13 +332,41 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
           </div>
 
           {/* Hero image */}
-          <div className="relative">
+          <div
+            className="relative overflow-hidden bg-black"
+            style={{ height: "min(70vh, 133.333vw)" }}
+          >
             <img
               src={day.mealImageUrl}
               alt="Ételfotó"
-              className="w-full object-cover"
-              style={{ maxHeight: "70vh" }}
+              className="h-full w-full object-contain"
+              loading="eager"
+              decoding="async"
             />
+
+            {(imageDays.length > 1 || canMovePrevious || canMoveNext) && (
+              <>
+                <button
+                  type="button"
+                  disabled={!canMovePrevious}
+                  onClick={() => onImageNavigate?.("previous")}
+                  aria-label="ElĹ‘zĹ‘ kĂ©p"
+                  className="absolute left-3 top-1/2 z-20 -translate-y-1/2 w-11 h-11 rounded-full bg-black/45 text-white backdrop-blur-sm flex items-center justify-center transition hover:bg-black/65 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  type="button"
+                  disabled={!canMoveNext}
+                  onClick={() => onImageNavigate?.("next")}
+                  aria-label="KĂ¶vetkezĹ‘ kĂ©p"
+                  className="absolute right-3 top-1/2 z-20 -translate-y-1/2 w-11 h-11 rounded-full bg-black/45 text-white backdrop-blur-sm flex items-center justify-center transition hover:bg-black/65 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </>
+            )}
+
             {/* top dark fade for drag handle visibility */}
             <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10" />
             {/* bottom info overlay */}
@@ -336,6 +429,7 @@ export function DayModal({ day, onClose, onSave, onDelete, isSaving = false, isD
           onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
           onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
           onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
           onMouseDown={(e) => handleDragStart(e.clientY)}
           onMouseMove={(e) => e.buttons === 1 && handleDragMove(e.clientY)}
           onMouseUp={handleDragEnd}

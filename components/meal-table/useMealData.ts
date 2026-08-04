@@ -18,6 +18,7 @@ import {
     getInitialMealFetchRange,
     getMonthDays,
     getRequiredMealRange,
+    getMealViewPrefetchRange,
     getWeekDays,
     getWeekStartForDate,
     getYearDays,
@@ -27,6 +28,8 @@ import {
 
 interface UseMealDataReturn {
     loading: boolean
+    viewLoading: boolean
+    ensureRangeLoaded: (requiredStart: Date, requiredEnd: Date) => Promise<void>
     allRecords: DayData[]
     setAllRecords: (records: DayData[]) => void
     currentWeekDays: DayData[]
@@ -48,9 +51,9 @@ interface UseMealDataReturn {
 
 import { useMealDataContext } from "./MealDataContext"
 
-export function useMealData(): UseMealDataReturn {
+export function useMealData(view: "week" | "month" | "year"): UseMealDataReturn {
     const router = useRouter()
-    const { loading, allRecords, setAllRecords, ensureRangeLoaded } = useMealDataContext()
+    const { loading, allRecords, loadedRange, setAllRecords, ensureRangeLoaded } = useMealDataContext()
     const [weekOffset, setWeekOffset] = useState(0)
     const [monthOffset, setMonthOffset] = useState(0)
     const [yearOffset, setYearOffset] = useState(0)
@@ -63,9 +66,32 @@ export function useMealData(): UseMealDataReturn {
     )
 
     useEffect(() => {
-        const requiredRange = getRequiredMealRange(today, weekOffset, monthOffset, yearOffset)
-        ensureRangeLoaded(requiredRange.start, requiredRange.end)
-    }, [ensureRangeLoaded, monthOffset, today, weekOffset, yearOffset])
+        const offset = view === "week" ? weekOffset : view === "month" ? monthOffset : yearOffset
+        const requiredRange = getRequiredMealRange(today, view, offset)
+        const prefetchRange = getMealViewPrefetchRange(today, view, offset)
+        let isActive = true
+
+        void ensureRangeLoaded(requiredRange.start, requiredRange.end).then(() => {
+            if (isActive) {
+                void ensureRangeLoaded(prefetchRange.start, prefetchRange.end)
+            }
+        })
+
+        return () => {
+            isActive = false
+        }
+    }, [ensureRangeLoaded, monthOffset, today, view, weekOffset, yearOffset])
+
+    const requiredViewRange = useMemo(() => {
+        const offset = view === "week" ? weekOffset : view === "month" ? monthOffset : yearOffset
+        return getRequiredMealRange(today, view, offset)
+    }, [monthOffset, today, view, weekOffset, yearOffset])
+
+    const viewLoading =
+        loading ||
+        !loadedRange ||
+        requiredViewRange.start < loadedRange.start ||
+        requiredViewRange.end > loadedRange.end
 
     const recordsByDate = useMemo(
         () => new Map(allRecords.map((day) => [formatDateOnly(day.date), day])),
@@ -94,7 +120,7 @@ export function useMealData(): UseMealDataReturn {
     const totalEmptyDays = useMemo(() => countElapsedEmptyDays(allRecords, today), [allRecords, today])
 
     return {
-        loading, allRecords, setAllRecords,
+        loading, viewLoading, allRecords, setAllRecords, ensureRangeLoaded,
         currentWeekDays, currentMonthDays, currentYearDays,
         weekStats, monthStats, totalEmptyDays,
         weekOffset, monthOffset, yearOffset, setWeekOffset, setMonthOffset, setYearOffset,

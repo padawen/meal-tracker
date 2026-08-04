@@ -2,7 +2,7 @@
 
 import type { ChangeEvent } from "react"
 import { useEffect, useRef, useState } from "react"
-import { X, Check, XIcon, Trash2, ImagePlus, Trash, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Check, XIcon, Trash2, ImagePlus, Trash, ChevronLeft, ChevronRight, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,6 +19,7 @@ import { useAuth } from "@/components/auth/AuthGuard"
 
 interface DayData {
   date: Date
+  recordId?: string
   status: "volt" | "nem" | "empty"
   food?: string
   mealImageUrl?: string
@@ -27,6 +28,9 @@ interface DayData {
   recordedByUserId?: string
   recordedAt?: string
   team?: "A" | "B"
+  ratingAverage?: number | null
+  ratingCount?: number
+  myRating?: number | null
 }
 
 interface DayModalProps {
@@ -34,10 +38,224 @@ interface DayModalProps {
   onClose: () => void
   onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B", mealImageUrl?: string) => void
   onDelete?: (day: DayData) => void
+  onRate?: (day: DayData, rating: number) => void
   isSaving?: boolean
   isDeletePending?: boolean
+  isRatingPending?: boolean
+  isVotingMode?: boolean
   imageDays?: DayData[]
   onImageNavigate?: (direction: "previous" | "next") => void
+}
+
+function MealRatingControl({
+  day,
+  onRate,
+  isPending,
+  overlay = false,
+  compact = false,
+}: {
+  day: DayData
+  onRate?: (day: DayData, rating: number) => void
+  isPending: boolean
+  overlay?: boolean
+  compact?: boolean
+}) {
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null)
+  const [selectedRating, setSelectedRating] = useState<number | null>(day.myRating ?? null)
+  const dayKey = day.recordId ?? day.date.toISOString()
+  const hasRated = Boolean(day.myRating)
+  const previewRating = hoveredRating ?? selectedRating
+  const averageLabel = day.ratingCount
+    ? `${day.ratingAverage?.toFixed(1).replace('.', ',')} · ${day.ratingCount} értékelés`
+    : 'Nincs értékelés'
+
+  useEffect(() => {
+    setHoveredRating(null)
+    setSelectedRating(day.myRating ?? null)
+  }, [dayKey, day.myRating])
+
+  if (overlay || compact) {
+    if (overlay) {
+      return (
+        <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white/20 bg-black/25 px-3 py-2.5 shadow-sm backdrop-blur-sm">
+          <div className="flex shrink-0 items-center gap-0" aria-label={hasRated ? `Saját értékelés: ${day.myRating} az 5 csillagból` : "Étel értékelése egytől ötig"}>
+            {[1, 2, 3, 4, 5].map((value) => {
+              const isActive = value <= (hasRated ? (day.myRating || 0) : (hoveredRating ?? selectedRating ?? 0))
+              const star = <Star className={`h-5 w-5 ${isActive ? "fill-amber-400 text-amber-300" : "fill-transparent text-white/70"}`} />
+
+              if (hasRated) {
+                return <span key={value}>{star}</span>
+              }
+
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={isPending || !day.recordId}
+                  onClick={() => setSelectedRating(value)}
+                  onMouseEnter={() => setHoveredRating(value)}
+                  onMouseLeave={() => setHoveredRating(null)}
+                  aria-label={`${value} csillag`}
+                  className="rounded-full p-0.5 transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {star}
+                </button>
+              )
+            })}
+          </div>
+
+          {!hasRated && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  setSelectedRating(null)
+                  setHoveredRating(null)
+                }}
+                className="h-8 rounded-md px-2.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Mégse
+              </button>
+              <button
+                type="button"
+                disabled={!selectedRating || isPending || !day.recordId}
+                onClick={() => selectedRating && onRate?.(day, selectedRating)}
+                className="h-8 rounded-md bg-amber-500 px-3 text-xs font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPending ? "Mentés..." : "Szavazás"}
+              </button>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex min-h-[82px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-amber-100 bg-amber-50/70 px-3 py-2 shadow-lg">
+        <div className="flex items-center gap-0.5" aria-label={hasRated ? `Saját értékelés: ${day.myRating} az 5 csillagból` : "Étel értékelése egytől ötig"}>
+          {[1, 2, 3, 4, 5].map((value) => {
+            const isActive = value <= (hasRated ? (day.myRating || 0) : (hoveredRating ?? selectedRating ?? 0))
+            const star = <Star className={`h-6 w-6 ${isActive ? "fill-amber-400 text-amber-500" : overlay ? "fill-white/20 text-white/50" : "fill-gray-200 text-gray-300"}`} />
+
+            if (hasRated) {
+              return <span key={value}>{star}</span>
+            }
+
+            return (
+              <button
+                key={value}
+                type="button"
+                disabled={isPending || !day.recordId}
+                onClick={() => setSelectedRating(value)}
+                onMouseEnter={() => setHoveredRating(value)}
+                onMouseLeave={() => setHoveredRating(null)}
+                aria-label={`${value} csillag`}
+                className="rounded-full p-1 transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {star}
+              </button>
+            )
+          })}
+        </div>
+
+        {!hasRated && (
+          <div className="flex w-full items-center gap-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                setSelectedRating(null)
+                setHoveredRating(null)
+              }}
+              className={`h-10 flex-1 rounded-lg px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${overlay ? "text-white hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"}`}
+            >
+              Mégse
+            </button>
+            <button
+              type="button"
+              disabled={!selectedRating || isPending || !day.recordId}
+              onClick={() => selectedRating && onRate?.(day, selectedRating)}
+              className="h-10 flex-1 rounded-lg bg-amber-500 px-3 text-xs font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPending ? "Mentés..." : "Szavazás"}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={overlay
+      ? "min-h-[118px] rounded-2xl border border-white/20 bg-black/60 px-3 py-3 text-white shadow-lg backdrop-blur-md"
+      : "rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3"
+    }>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className={overlay ? "text-sm font-semibold text-white" : "text-sm font-semibold text-gray-800"}>Értékelés</p>
+          <p className={overlay ? "text-xs text-white/70" : "text-xs text-gray-500"}>{averageLabel}</p>
+        </div>
+        {hasRated ? (
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-0.5" aria-label={`Saját értékelés: ${day.myRating} az 5 csillagból`}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Star
+                  key={value}
+                  className={`h-6 w-6 ${value <= (day.myRating || 0) ? "fill-amber-400 text-amber-500" : overlay ? "fill-white/20 text-white/40" : "fill-gray-200 text-gray-300"}`}
+                />
+              ))}
+            </div>
+            <span className={overlay ? "text-sm font-bold text-amber-200" : "text-sm font-bold text-amber-700"}>Te: {day.myRating}/5 csillag</span>
+          </div>
+        ) : (
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-0.5" aria-label="Étel értékelése egytől ötig">
+            {[1, 2, 3, 4, 5].map((value) => (
+              <button
+                key={value}
+                type="button"
+                disabled={isPending || !day.recordId}
+                onClick={() => setSelectedRating(value)}
+                onMouseEnter={() => setHoveredRating(value)}
+                onMouseLeave={() => setHoveredRating(null)}
+                aria-label={`${value} csillag`}
+                className="rounded-full p-1 transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Star className={`h-6 w-6 ${previewRating && value <= previewRating ? "fill-amber-400 text-amber-500" : "fill-gray-200 text-gray-300"}`} />
+              </button>
+            ))}
+            </div>
+            <span className={overlay ? "text-xs font-semibold text-amber-200" : "text-xs font-semibold text-amber-700"}>
+              {previewRating ? `${previewRating}/5 csillag` : "Válassz csillagot"}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  setSelectedRating(null)
+                  setHoveredRating(null)
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${overlay ? "text-white hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"}`}
+              >
+                Mégse
+              </button>
+              <button
+                type="button"
+                disabled={!selectedRating || isPending || !day.recordId}
+                onClick={() => selectedRating && onRate?.(day, selectedRating)}
+                className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPending ? "Mentés..." : "Szavazás"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {!hasRated && <p className={overlay ? "mt-2 text-[11px] text-white/60" : "mt-2 text-[11px] text-gray-500"}>A szavazatod egyszer adható le.</p>}
+    </div>
+  )
 }
 
 async function resizeImageToDataUrl(file: File) {
@@ -109,14 +327,18 @@ export function DayModal({
   onClose,
   onSave,
   onDelete,
+  onRate,
   isSaving = false,
   isDeletePending = false,
+  isRatingPending = false,
+  isVotingMode = false,
   imageDays = [],
   onImageNavigate,
 }: DayModalProps) {
   const { user } = useAuth()
   const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
   const isBusy = isSaving || isDeletePending
+  const ratingKey = day.recordId ?? day.date.toISOString()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const getSuggestedTeam = (date: Date): "A" | "B" => {
@@ -259,6 +481,7 @@ export function DayModal({
   }
 
   const [showEditForm, setShowEditForm] = useState(false)
+  const isImageLessVotingCard = isVotingMode && !day.mealImageUrl
 
   const imageIndex = imageDays.findIndex((imageDay) => imageDay.date.getTime() === day.date.getTime())
   const previousImageDay = imageIndex > 0 ? imageDays[imageIndex - 1] : undefined
@@ -267,7 +490,7 @@ export function DayModal({
   const canMoveNext = Boolean(nextImageDay)
 
   useEffect(() => {
-    if (!day.mealImageUrl || showEditForm || (!canMovePrevious && !canMoveNext)) {
+    if ((!day.mealImageUrl && !isVotingMode) || showEditForm || (!canMovePrevious && !canMoveNext)) {
       return
     }
 
@@ -290,7 +513,7 @@ export function DayModal({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [canMoveNext, canMovePrevious, day.mealImageUrl, onClose, onImageNavigate, showEditForm])
+  }, [canMoveNext, canMovePrevious, day.mealImageUrl, isVotingMode, onClose, onImageNavigate, showEditForm])
 
   useEffect(() => {
     const adjacentImageUrls = [previousImageDay?.mealImageUrl, nextImageDay?.mealImageUrl].filter(
@@ -305,7 +528,7 @@ export function DayModal({
   }, [nextImageDay?.mealImageUrl, previousImageDay?.mealImageUrl])
 
   // Full-size image viewer modal by default when there is an image
-  if (day.mealImageUrl && !showEditForm) {
+  if ((day.mealImageUrl || isVotingMode) && !showEditForm) {
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -333,16 +556,20 @@ export function DayModal({
 
           {/* Hero image */}
           <div
-            className="relative overflow-hidden bg-black"
+            className={`relative overflow-hidden ${isImageLessVotingCard ? "bg-emerald-50" : "bg-black"}`}
             style={{ height: "min(70vh, 133.333vw)" }}
           >
-            <img
-              src={day.mealImageUrl}
-              alt="Ételfotó"
-              className="h-full w-full object-contain"
-              loading="eager"
-              decoding="async"
-            />
+            {day.mealImageUrl ? (
+              <img
+                src={day.mealImageUrl}
+                alt="Ételfotó"
+                className="h-full w-full object-contain"
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <div className="h-full w-full bg-emerald-50" aria-label="Ehhez az étkezéshez nincs feltöltött kép" />
+            )}
 
             {(imageDays.length > 1 || canMovePrevious || canMoveNext) && (
               <>
@@ -368,17 +595,22 @@ export function DayModal({
             )}
 
             {/* top dark fade for drag handle visibility */}
-            <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10" />
+            <div className={`absolute top-0 inset-x-0 h-16 pointer-events-none z-10 ${isImageLessVotingCard ? "bg-gradient-to-b from-emerald-100/60 to-transparent" : "bg-gradient-to-b from-black/50 to-transparent"}`} />
             {/* bottom info overlay */}
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-5 pt-16 z-10">
+            <div className={`absolute bottom-0 inset-x-0 p-5 pt-16 z-10 ${isImageLessVotingCard ? "bg-emerald-50" : "bg-gradient-to-t from-black/90 via-black/50 to-transparent"}`}>
               <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-white/70 text-xs mb-1">{formatDate(day.date)}</p>
+                  <p className={isImageLessVotingCard ? "text-gray-700 text-xs mb-1" : "text-white/70 text-xs mb-1"}>{formatDate(day.date)}</p>
                   {day.food && (
-                    <h2 className="text-white font-bold text-xl leading-tight">{day.food}</h2>
+                    <h2 className={isImageLessVotingCard ? "text-gray-900 font-bold text-xl leading-tight" : "text-white font-bold text-xl leading-tight"}>{day.food}</h2>
                   )}
                   {day.recordedBy && (
-                    <p className="text-white/60 text-xs mt-1.5">{day.recordedBy}{day.recordedAt ? ` · ${day.recordedAt}` : ""}</p>
+                    <p className={isImageLessVotingCard ? "text-gray-600 text-xs mt-1.5" : "text-white/60 text-xs mt-1.5"}>{day.recordedBy}{day.recordedAt ? ` · ${day.recordedAt}` : ""}</p>
+                  )}
+                  {day.status === "volt" && (
+                    <div className="mt-2">
+                      <MealRatingControl key={ratingKey} day={day} onRate={onRate} isPending={isRatingPending} overlay />
+                    </div>
                   )}
                 </div>
                 {day.team && (
@@ -453,6 +685,10 @@ export function DayModal({
             <p className="text-sm text-[#6B7280]">Kiválasztott nap</p>
             <p className="text-xl font-semibold text-[#1F2937]">{formatDate(day.date)}</p>
           </div>
+
+          {day.status === "volt" && (
+            <MealRatingControl key={ratingKey} day={day} onRate={onRate} isPending={isRatingPending} compact />
+          )}
 
           <div className="space-y-3">
             <Label className="text-sm font-medium text-[#1F2937]">Volt személyzeti étkezés ezen a napon?</Label>

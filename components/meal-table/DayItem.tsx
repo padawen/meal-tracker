@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertCircle, Check, X, Minus } from "lucide-react"
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import type { FoodStatus, MealDayData as DayData } from "@/lib/meal-domain"
 
 export type { FoodStatus, MealDayData as DayData } from "@/lib/meal-domain"
@@ -151,6 +151,12 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     <span className="truncate max-w-[150px]">{day.recordedBy}</span>
                     <span className="opacity-30">•</span>
                     <span>{day.recordedAt}</span>
+                </div>
+            )}
+
+            {day.status === "volt" && !day.isHoliday && (
+                <div className="flex items-center gap-1.5 border-t border-black/5 pt-2 text-xs font-semibold text-amber-700 relative z-10">
+                    {day.ratingCount ? `${day.ratingAverage?.toFixed(1).replace('.', ',')} · ${day.ratingCount} értékelés` : 'Nincs értékelés'}
                 </div>
             )}
         </button>

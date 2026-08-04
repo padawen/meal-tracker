@@ -37,6 +37,8 @@ export function MealTable() {
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
     const [isImageGalleryLoading, setIsImageGalleryLoading] = useState(false)
+    const [isVotingMode, setIsVotingMode] = useState(false)
+    const [isVotingModeLoading, setIsVotingModeLoading] = useState(false)
     const { profile, user } = useAuth()
     const router = useRouter()
     const { toast } = useToast()
@@ -50,7 +52,7 @@ export function MealTable() {
     } = useMealData(view)
 
     const today = new Date()
-    const { confettiVariant, handleDelete, handleSave, pendingAction } = useMealTableMutations({
+    const { confettiVariant, handleDelete, handleSave, handleRate, pendingAction } = useMealTableMutations({
         allRecords,
         currentUserName: profile.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Ismeretlen',
         formatDateStr,
@@ -108,6 +110,39 @@ export function MealTable() {
             .sort((a, b) => a.date.getTime() - b.date.getTime()),
         [allRecords]
     )
+    const votingDays = useMemo(
+        () => allRecords
+            .filter((day) => day.status === "volt")
+            .sort((a, b) => a.date.getTime() - b.date.getTime()),
+        [allRecords]
+    )
+
+    useEffect(() => {
+        if (!isVotingMode || selectedDay || votingDays.length === 0) return
+
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+        const currentOrPreviousDay = votingDays.reduce((latest, day) => {
+            return day.date <= todayStart ? day : latest
+        }, votingDays[0])
+
+        setSelectedDay(currentOrPreviousDay)
+    }, [isVotingMode, selectedDay, votingDays])
+
+    const handleOpenVotingMode = async () => {
+        setIsVotingModeLoading(true)
+        setSelectedDay(null)
+
+        try {
+            await ensureRangeLoaded(
+                MEAL_TRACKING_START,
+                new Date(today.getFullYear(), 11, 31)
+            )
+            setIsVotingMode(true)
+        } finally {
+            setIsVotingModeLoading(false)
+        }
+    }
     const normalizedSearch = view === "year" ? normalizeSearchText(searchQuery) : ""
     const filteredDays = useMemo(() => {
         if (!normalizedSearch) {
@@ -140,9 +175,10 @@ export function MealTable() {
     const handleImageNavigate = (direction: "previous" | "next") => {
         if (!selectedDay) return
 
-        const currentImageIndex = imageDays.findIndex((day) => day.date.getTime() === selectedDay.date.getTime())
+        const navigationDays = isVotingMode ? votingDays : imageDays
+        const currentImageIndex = navigationDays.findIndex((day) => day.date.getTime() === selectedDay.date.getTime())
         const nextImageIndex = currentImageIndex + (direction === "previous" ? -1 : 1)
-        const nextImageDay = imageDays[nextImageIndex]
+        const nextImageDay = navigationDays[nextImageIndex]
 
         if (!nextImageDay) return
 
@@ -233,7 +269,7 @@ export function MealTable() {
         setYearOffset(0)
     }
 
-    if (viewLoading || isImageGalleryLoading) {
+    if (viewLoading || isImageGalleryLoading || isVotingModeLoading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -252,6 +288,14 @@ export function MealTable() {
                 totalEmptyDays={totalEmptyDays}
                 weekStats={weekStats}
             />
+
+            <button
+                type="button"
+                onClick={() => void handleOpenVotingMode()}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100 cursor-pointer"
+            >
+                Szavazás mód
+            </button>
 
             <ViewToggle view={view} onViewChange={handleViewChange} />
 
@@ -328,12 +372,18 @@ export function MealTable() {
             {selectedDay && (
                 <DayModal
                     day={selectedDay}
-                    onClose={() => setSelectedDay(null)}
+                    isVotingMode={isVotingMode}
+                    onClose={() => {
+                        setSelectedDay(null)
+                        setIsVotingMode(false)
+                    }}
                     onSave={handleSave}
                     onDelete={handleDelete}
+                    onRate={handleRate}
                     isSaving={pendingAction === "save"}
                     isDeletePending={pendingAction === "delete"}
-                    imageDays={imageDays}
+                    isRatingPending={pendingAction === "rate"}
+                    imageDays={isVotingMode ? votingDays : imageDays}
                     onImageNavigate={handleImageNavigate}
                 />
             )}

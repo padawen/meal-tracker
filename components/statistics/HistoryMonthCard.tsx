@@ -67,6 +67,9 @@ export function HistoryMonthCard({ stat }: HistoryMonthCardProps) {
                     {stat.total.unfilled > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> üres</span>}
                     {stat.total.holidays > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> szünnap</span>}
                 </div>
+                <div className="text-center text-xs text-amber-700">
+                    {stat.total.ratingCount > 0 ? `${stat.total.ratingAverage?.toFixed(1).replace('.', ',')} · ${stat.total.ratingCount} értékelés` : 'Nincs értékelés'}
+                </div>
             </div>
         </div>
     )

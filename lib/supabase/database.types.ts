@@ -88,6 +88,30 @@ export interface Database {
                     }
                 ]
             }
+            meal_ratings: {
+                Row: {
+                    id: string
+                    meal_record_id: string
+                    user_id: string
+                    rating: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    meal_record_id: string
+                    user_id: string
+                    rating: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    meal_record_id?: string
+                    user_id?: string
+                    rating?: number
+                    created_at?: string
+                }
+                Relationships: []
+            }
             holidays: {
                 Row: {
                     id: string
@@ -127,7 +151,19 @@ export interface Database {
             }
         }
         Views: {}
-        Functions: {}
+        Functions: {
+            get_meal_rating_summaries: {
+                Args: { p_start_date: string; p_end_date: string }
+                Returns: {
+                    meal_record_id: string
+                    meal_date: string
+                    rating_sum: number
+                    rating_count: number
+                    rating_average: number | null
+                    my_rating: number | null
+                }[]
+            }
+        }
         Enums: {}
         CompositeTypes: {}
     }

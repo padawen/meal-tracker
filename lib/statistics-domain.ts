@@ -32,6 +32,9 @@ export interface HistoryMonthlyStat {
     no: number
     unfilled: number
     holidays: number
+    ratingSum: number
+    ratingCount: number
+    ratingAverage: number | null
   }
   daysInMonth: number
   elapsedDays: number
@@ -48,6 +51,9 @@ export interface HistoryYearSummary {
 export interface TeamRecordSummary {
   had: number
   no: number
+  ratingSum: number
+  ratingCount: number
+  ratingAverage: number | null
 }
 
 export interface RecordsSummary {
@@ -55,6 +61,9 @@ export interface RecordsSummary {
   teamB: TeamRecordSummary
   totalHad: number
   totalNo: number
+  ratingSum: number
+  ratingCount: number
+  ratingAverage: number | null
 }
 
 const MONTH_NAMES = [
@@ -109,6 +118,9 @@ export function calculateStatsForDays(days: StatsCalendarDay[], today: Date) {
 export function calculateTeamPeriodStats(team: TeamCode, days: StatsCalendarDay[]): PeriodStats {
   const teamRecordDays = days.filter((day) => day.team === team)
 
+  const ratingSum = teamRecordDays.reduce((sum, day) => sum + (day.status === 'volt' ? day.ratingSum || 0 : 0), 0)
+  const ratingCount = teamRecordDays.reduce((sum, day) => sum + (day.status === 'volt' ? day.ratingCount || 0 : 0), 0)
+
   return {
     hadMeal: teamRecordDays.filter((day) => day.status === 'volt').length,
     noMeal: teamRecordDays.filter((day) => day.status === 'nem').length,
@@ -116,6 +128,9 @@ export function calculateTeamPeriodStats(team: TeamCode, days: StatsCalendarDay[
     holidays: 0,
     totalDays: teamRecordDays.length,
     elapsedDays: teamRecordDays.length,
+    ratingSum,
+    ratingCount,
+    ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
   }
 }
 
@@ -168,7 +183,7 @@ export function buildUserStatsFromRecords(
 export function buildHistoryMonthlyStats(
   historyYear: string,
   today: Date,
-  records: Pick<MealRecordRow, 'date' | 'had_meal' | 'team'>[],
+  records: Pick<MealRecordRow, 'date' | 'had_meal' | 'team' | 'rating_sum' | 'rating_count'>[],
   holidays: Pick<HolidayRow, 'date'>[]
 ) {
   const yearRecords = records.filter((record) => parseDateOnly(record.date).getFullYear().toString() === historyYear)
@@ -185,6 +200,8 @@ export function buildHistoryMonthlyStats(
     const elapsedDaysInMonth = getElapsedDaysInMonth(monthStart, monthEnd, today)
     const totalHad = monthRecords.filter((record) => record.had_meal).length
     const totalNo = monthRecords.filter((record) => !record.had_meal).length
+    const ratingSum = monthRecords.reduce((sum, record) => sum + (record.had_meal ? record.rating_sum || 0 : 0), 0)
+    const ratingCount = monthRecords.reduce((sum, record) => sum + (record.had_meal ? record.rating_count || 0 : 0), 0)
 
     if (monthRecords.length > 0 || visibleHolidays > 0) {
       stats.push({
@@ -202,6 +219,9 @@ export function buildHistoryMonthlyStats(
           no: totalNo,
           unfilled: unfilledCount,
           holidays: visibleHolidays,
+          ratingSum,
+          ratingCount,
+          ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
         },
         daysInMonth: monthEnd.getDate(),
         elapsedDays: elapsedDaysInMonth,
@@ -222,8 +242,10 @@ export function summarizeHistoryMonthlyStats(stats: HistoryMonthlyStat[]) {
       totalHad: acc.totalHad + stat.total.had,
       totalNo: acc.totalNo + stat.total.no,
       totalHolidays: acc.totalHolidays + stat.total.holidays,
+      totalRatingSum: acc.totalRatingSum + stat.total.ratingSum,
+      totalRatingCount: acc.totalRatingCount + stat.total.ratingCount,
     }),
-    { teamAHad: 0, teamANo: 0, teamBHad: 0, teamBNo: 0, totalHad: 0, totalNo: 0, totalHolidays: 0 }
+    { teamAHad: 0, teamANo: 0, teamBHad: 0, teamBNo: 0, totalHad: 0, totalNo: 0, totalHolidays: 0, totalRatingSum: 0, totalRatingCount: 0 }
   )
 }
 
@@ -253,17 +275,30 @@ export function buildHistoryYearSummary(historyYear: string, today: Date, holida
 }
 
 export function summarizeRecordsByTeam(records: Pick<MealRecordRow, 'team' | 'had_meal'>[]): RecordsSummary {
+  const withRatings = records as Pick<MealRecordRow, 'team' | 'had_meal' | 'rating_sum' | 'rating_count'>[]
+  const makeSummary = (team: TeamCode) => {
+    const teamRecords = withRatings.filter((record) => record.team === team)
+    const ratingSum = teamRecords.reduce((sum, record) => sum + (record.had_meal ? record.rating_sum || 0 : 0), 0)
+    const ratingCount = teamRecords.reduce((sum, record) => sum + (record.had_meal ? record.rating_count || 0 : 0), 0)
+    return {
+      had: teamRecords.filter((record) => record.had_meal).length,
+      no: teamRecords.filter((record) => !record.had_meal).length,
+      ratingSum,
+      ratingCount,
+      ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
+    }
+  }
+  const teamA = makeSummary('A')
+  const teamB = makeSummary('B')
+  const ratingSum = withRatings.reduce((sum, record) => sum + (record.had_meal ? record.rating_sum || 0 : 0), 0)
+  const ratingCount = withRatings.reduce((sum, record) => sum + (record.had_meal ? record.rating_count || 0 : 0), 0)
   return {
-    teamA: {
-      had: records.filter((record) => record.team === 'A' && record.had_meal).length,
-      no: records.filter((record) => record.team === 'A' && !record.had_meal).length,
-    },
-    teamB: {
-      had: records.filter((record) => record.team === 'B' && record.had_meal).length,
-      no: records.filter((record) => record.team === 'B' && !record.had_meal).length,
-    },
-    totalHad: records.filter((record) => record.had_meal).length,
-    totalNo: records.filter((record) => !record.had_meal).length,
+    teamA, teamB,
+    totalHad: withRatings.filter((record) => record.had_meal).length,
+    totalNo: withRatings.filter((record) => !record.had_meal).length,
+    ratingSum,
+    ratingCount,
+    ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
   }
 }
 

@@ -4,6 +4,9 @@ export interface DayData {
     status: "volt" | "nem" | "empty"
     isHoliday?: boolean
     holidayName?: string
+    ratingSum?: number
+    ratingCount?: number
+    ratingAverage?: number | null
 }
 
 export interface PeriodStats {
@@ -13,6 +16,9 @@ export interface PeriodStats {
     holidays: number
     totalDays: number
     elapsedDays: number
+    ratingSum: number
+    ratingCount: number
+    ratingAverage: number | null
 }
 
 export function calculatePeriodStats(days: DayData[], today: Date): PeriodStats {
@@ -24,6 +30,8 @@ export function calculatePeriodStats(days: DayData[], today: Date): PeriodStats 
     let unfilled = 0
     let holidays = 0
     let elapsedDays = 0
+    let ratingSum = 0
+    let ratingCount = 0
 
     days.forEach(day => {
         const dayZero = new Date(day.date)
@@ -42,6 +50,11 @@ export function calculatePeriodStats(days: DayData[], today: Date): PeriodStats 
         } else if (day.status === "empty" && dayZero <= todayZero) {
             unfilled++
         }
+
+        if (day.status === "volt") {
+            ratingSum += day.ratingSum || 0
+            ratingCount += day.ratingCount || 0
+        }
     })
 
     return {
@@ -50,6 +63,9 @@ export function calculatePeriodStats(days: DayData[], today: Date): PeriodStats 
         unfilled,
         holidays,
         totalDays: days.length,
-        elapsedDays
+        elapsedDays,
+        ratingSum,
+        ratingCount,
+        ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
     }
 }

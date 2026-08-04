@@ -31,6 +31,12 @@ export function AllTimeTab({ rawRecords, holidays, allUsers }: AllTimeTabProps) 
                     teamBNo={allTimeSummary.teamB.no}
                     totalHad={allTimeSummary.totalHad}
                     totalNo={allTimeSummary.totalNo}
+                    ratingSum={allTimeSummary.ratingSum}
+                    ratingCount={allTimeSummary.ratingCount}
+                    teamARatingSum={allTimeSummary.teamA.ratingSum}
+                    teamARatingCount={allTimeSummary.teamA.ratingCount}
+                    teamBRatingSum={allTimeSummary.teamB.ratingSum}
+                    teamBRatingCount={allTimeSummary.teamB.ratingCount}
                     holidays={holidays.length}
                 />
             </div>

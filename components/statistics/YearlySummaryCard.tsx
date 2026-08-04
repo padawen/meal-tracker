@@ -10,9 +10,15 @@ interface StatsSummaryCardProps {
     totalHad: number
     totalNo: number
     holidays?: number
+    ratingSum?: number
+    ratingCount?: number
+    teamARatingSum?: number
+    teamARatingCount?: number
+    teamBRatingSum?: number
+    teamBRatingCount?: number
 }
 
-function makeTeamStats(had: number, no: number): PeriodStats {
+function makeTeamStats(had: number, no: number, ratingSum = 0, ratingCount = 0): PeriodStats {
     return {
         hadMeal: had,
         noMeal: no,
@@ -20,11 +26,15 @@ function makeTeamStats(had: number, no: number): PeriodStats {
         holidays: 0,
         totalDays: had + no,
         elapsedDays: had + no,
+        ratingSum,
+        ratingCount,
+        ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
     }
 }
 
 export function StatsSummaryCard({
-    title, teamAHad, teamANo, teamBHad, teamBNo, totalHad, totalNo, holidays = 0
+    title, teamAHad, teamANo, teamBHad, teamBNo, totalHad, totalNo, holidays = 0,
+    ratingSum = 0, ratingCount = 0, teamARatingSum = 0, teamARatingCount = 0, teamBRatingSum = 0, teamBRatingCount = 0
 }: StatsSummaryCardProps) {
     return (
         <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50">
@@ -41,8 +51,8 @@ export function StatsSummaryCard({
                 </div>
             </div>
             <div className="space-y-2">
-                <TeamSummaryCard team="A" teamName="Zs csapat" stats={makeTeamStats(teamAHad, teamANo)} period="yearly" />
-                <TeamSummaryCard team="B" teamName="R csapat" stats={makeTeamStats(teamBHad, teamBNo)} period="yearly" />
+                <TeamSummaryCard team="A" teamName="Zs csapat" stats={makeTeamStats(teamAHad, teamANo, teamARatingSum, teamARatingCount)} period="yearly" />
+                <TeamSummaryCard team="B" teamName="R csapat" stats={makeTeamStats(teamBHad, teamBNo, teamBRatingSum, teamBRatingCount)} period="yearly" />
                 <div className="flex items-center justify-between pt-2 border-t border-gray-200 flex-wrap gap-y-1">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Összesen</span>
                     <div className="flex gap-3">
@@ -53,6 +63,9 @@ export function StatsSummaryCard({
                             <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>{totalNo}
                         </span>
                     </div>
+                </div>
+                <div className="pt-2 border-t border-dashed border-gray-200 text-center text-xs text-amber-700">
+                    {ratingCount > 0 ? `${(ratingSum / ratingCount).toFixed(1).replace('.', ',')} · ${ratingCount} értékelés` : 'Nincs értékelés'}
                 </div>
             </div>
         </div>

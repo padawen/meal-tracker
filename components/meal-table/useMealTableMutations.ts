@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 
-import { deleteMealAction, saveMealAction } from '@/app/actions/meal-actions'
+import { deleteMealAction, saveMealAction, saveMealRatingAction } from '@/app/actions/meal-actions'
 import type { MealDayData } from '@/lib/meal-domain'
 
 interface MealTableMutationOptions {
@@ -42,7 +42,7 @@ export function useMealTableMutations({
   userId,
 }: MealTableMutationOptions) {
   const [confettiVariant, setConfettiVariant] = useState<'celebration' | 'sad' | null>(null)
-  const [pendingAction, setPendingAction] = useState<'save' | 'delete' | null>(null)
+  const [pendingAction, setPendingAction] = useState<'save' | 'delete' | 'rate' | null>(null)
   const [, startTransition] = useTransition()
 
   const triggerConfetti = (variant: 'celebration' | 'sad') => {
@@ -80,6 +80,7 @@ export function useMealTableMutations({
         }
 
         const savedTimestamp = 'timestamp' in response ? response.timestamp : undefined
+        const savedRecordId = 'recordId' in response ? response.recordId : undefined
 
         triggerConfetti(hadFood ? 'celebration' : 'sad')
 
@@ -88,6 +89,7 @@ export function useMealTableMutations({
           const updatedRecords = [...allRecords]
           updatedRecords[indexToUpdate] = {
             ...updatedRecords[indexToUpdate],
+            recordId: savedRecordId || updatedRecords[indexToUpdate].recordId,
             status: hadFood ? 'volt' : 'nem',
             food: hadFood ? details : undefined,
             mealImageUrl: hadFood ? mealImageUrl : undefined,
@@ -96,6 +98,10 @@ export function useMealTableMutations({
             recordedBy: currentUserName,
             recordedByUserId: userId,
             recordedAt: formatTimestamp(savedTimestamp),
+            ratingAverage: hadFood ? updatedRecords[indexToUpdate].ratingAverage : undefined,
+            ratingCount: hadFood ? updatedRecords[indexToUpdate].ratingCount : 0,
+            ratingSum: hadFood ? updatedRecords[indexToUpdate].ratingSum : 0,
+            myRating: hadFood ? updatedRecords[indexToUpdate].myRating : undefined,
           }
           setAllRecords(updatedRecords)
         }
@@ -130,6 +136,7 @@ export function useMealTableMutations({
           updatedRecords[indexToUpdate] = {
             ...updatedRecords[indexToUpdate],
             status: 'empty',
+            recordId: undefined,
             food: undefined,
             mealImageUrl: undefined,
             reason: undefined,
@@ -137,6 +144,10 @@ export function useMealTableMutations({
             recordedBy: undefined,
             recordedByUserId: undefined,
             recordedAt: undefined,
+            ratingAverage: undefined,
+            ratingCount: 0,
+            ratingSum: 0,
+            myRating: undefined,
           }
           setAllRecords(updatedRecords)
         }
@@ -152,10 +163,48 @@ export function useMealTableMutations({
     })
   }
 
+  const handleRate = async (dayData: MealDayData, rating: number) => {
+    if (!dayData.recordId || dayData.myRating) return
+
+    setPendingAction('rate')
+    startTransition(async () => {
+      try {
+        const response = await saveMealRatingAction(dayData.recordId!, rating)
+        if (!response.success) {
+          toast({ title: 'Figyelem', description: response.error || 'Nem sikerült menteni az értékelést', variant: 'destructive' })
+          return
+        }
+
+        const indexToUpdate = allRecords.findIndex((record) => record.recordId === dayData.recordId)
+        if (indexToUpdate !== -1) {
+          const updatedRecords = [...allRecords]
+          const current = updatedRecords[indexToUpdate]
+          const nextCount = (current.ratingCount || 0) + 1
+          const nextSum = (current.ratingSum || 0) + rating
+          updatedRecords[indexToUpdate] = {
+            ...current,
+            ratingCount: nextCount,
+            ratingSum: nextSum,
+            ratingAverage: nextSum / nextCount,
+            myRating: rating,
+          }
+          setAllRecords(updatedRecords)
+        }
+        toast({ title: 'Köszönjük!', description: 'Az értékelésed rögzítve lett.' })
+      } catch (error) {
+        console.error('Error saving meal rating:', error)
+        toast({ title: 'Hiba', description: 'Nem sikerült menteni az értékelést', variant: 'destructive' })
+      } finally {
+        setPendingAction(null)
+      }
+    })
+  }
+
   return {
     confettiVariant,
     handleDelete,
     handleSave,
+    handleRate,
     pendingAction,
   }
 }

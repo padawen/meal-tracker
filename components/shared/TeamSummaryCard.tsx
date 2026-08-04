@@ -34,6 +34,10 @@ export function TeamSummaryCard({ team, teamName, stats, period }: TeamSummaryCa
                     <span className="text-xs text-[#6B7280]">nincs</span>
                 </div>
             </div>
+            <div className="mt-3 flex items-center justify-center gap-1 border-t border-gray-200 pt-3 text-sm font-semibold text-amber-700">
+                <span>{stats.ratingAverage !== null ? stats.ratingAverage.toFixed(1).replace('.', ',') : 'Nincs értékelés'}</span>
+                {stats.ratingCount > 0 && <span className="text-xs font-normal text-[#6B7280]">({stats.ratingCount})</span>}
+            </div>
         </div>
     )
 }

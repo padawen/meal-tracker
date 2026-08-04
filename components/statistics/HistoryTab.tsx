@@ -93,6 +93,8 @@ export function HistoryTab({ historyYear, setHistoryYear, historyYears, rawRecor
                             teamBNo={yearlyTotals.teamBNo}
                             totalHad={yearlyTotals.totalHad}
                             totalNo={yearlyTotals.totalNo}
+                            ratingSum={yearlyTotals.totalRatingSum}
+                            ratingCount={yearlyTotals.totalRatingCount}
                             holidays={yearlyTotals.totalHolidays}
                         />
                     </div>

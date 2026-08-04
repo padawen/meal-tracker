@@ -7,6 +7,7 @@ export const MEAL_TRACKING_START = new Date(2026, 0, 1)
 
 export interface MealDayData {
   date: Date
+  recordId?: string
   status: FoodStatus
   food?: string
   mealImageUrl?: string
@@ -17,6 +18,10 @@ export interface MealDayData {
   team?: TeamCode
   isHoliday?: boolean
   holidayName?: string
+  ratingAverage?: number | null
+  ratingCount?: number
+  ratingSum?: number
+  myRating?: number | null
 }
 
 export interface StatsCalendarDay {
@@ -25,6 +30,18 @@ export interface StatsCalendarDay {
   team?: TeamCode
   isHoliday?: boolean
   holidayName?: string
+  ratingAverage?: number | null
+  ratingCount?: number
+  ratingSum?: number
+}
+
+export interface MealRatingSummary {
+  meal_record_id: string
+  meal_date: string
+  rating_sum: number
+  rating_count: number
+  rating_average: number | null
+  my_rating: number | null
 }
 
 export interface MealRecordRow {
@@ -37,6 +54,10 @@ export interface MealRecordRow {
   recorded_by: string
   created_at: string
   team: string | null
+  rating_sum?: number
+  rating_count?: number
+  rating_average?: number | null
+  my_rating?: number | null
 }
 
 export interface HolidayRow {
@@ -55,7 +76,7 @@ export async function fetchMealRangeData(startDate: Date, endDate: Date) {
   const startDateStr = formatDateOnly(startDate)
   const endDateStr = formatDateOnly(endDate)
 
-  const [recordsResult, holidaysResult] = await Promise.all([
+  const [recordsResult, holidaysResult, ratingsResult] = await Promise.all([
     supabase
       .from('meal_records')
       .select('*')
@@ -68,13 +89,25 @@ export async function fetchMealRangeData(startDate: Date, endDate: Date) {
       .gte('date', startDateStr)
       .lte('date', endDateStr)
       .returns<HolidayRow[]>(),
+    supabase
+      .rpc('get_meal_rating_summaries', { p_start_date: startDateStr, p_end_date: endDateStr })
+      .returns<MealRatingSummary[]>(),
   ])
 
   if (recordsResult.error) throw recordsResult.error
   if (holidaysResult.error) throw holidaysResult.error
+  if (ratingsResult.error) throw ratingsResult.error
+
+  const ratingsByRecordId = new Map((ratingsResult.data || []).map((rating) => [rating.meal_record_id, rating]))
+  const records = (recordsResult.data || []).map((record) => {
+    const rating = ratingsByRecordId.get(record.id)
+    return rating
+      ? { ...record, rating_sum: rating.rating_sum, rating_count: rating.rating_count, rating_average: rating.rating_average, my_rating: rating.my_rating }
+      : record
+  })
 
   return {
-    records: recordsResult.data || [],
+    records,
     holidays: holidaysResult.data || [],
   }
 }
@@ -150,6 +183,7 @@ export function buildMealDayDataRange(
 
     days.push({
       date: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
+      recordId: record?.id,
       status,
       food,
       mealImageUrl,
@@ -158,6 +192,10 @@ export function buildMealDayDataRange(
       recordedByUserId,
       recordedAt,
       team,
+      ratingAverage: record?.rating_average,
+      ratingCount: record?.rating_count || 0,
+      ratingSum: record?.rating_sum || 0,
+      myRating: record?.my_rating,
       isHoliday: Boolean(holidayName),
       holidayName,
     })
@@ -188,6 +226,9 @@ export function buildStatsDayRange(
       date: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
       status: record ? (record.had_meal ? 'volt' : 'nem') : 'empty',
       team: (record?.team as TeamCode) || undefined,
+      ratingAverage: record?.rating_average,
+      ratingCount: record?.rating_count || 0,
+      ratingSum: record?.rating_sum || 0,
       isHoliday: Boolean(holidayName),
       holidayName,
     })

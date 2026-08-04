@@ -175,29 +175,41 @@ export function MealDataProvider({ children }: { children: React.ReactNode }) {
   }, [ensureRangeLoaded, fetchDateRange])
 
   useEffect(() => {
+    const getPayloadString = (value: unknown, key: string) => {
+      if (!value || typeof value !== 'object') return undefined
+      const field = (value as Record<string, unknown>)[key]
+      return typeof field === 'string' ? field : undefined
+    }
+
+    const refreshDate = async (dateStr: string) => {
+      const d = parseDateOnly(dateStr)
+      const { days, records } = await fetchDateRange(d, d)
+      if (days.length > 0) setAllRecords((prev) => replaceMealDay(prev, days[0]))
+      setRawRecords((prev) => {
+        const withoutDate = prev.filter((record) => record.date !== dateStr)
+        return records.length > 0 ? [...withoutDate, records[0]] : withoutDate
+      })
+    }
+
     const channel = supabase
       .channel("meal_records_cache_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "meal_records" }, async (payload) => {
-        const dateStr = payload.new ? (payload.new as any).date : (payload.old as any)?.date
+        const dateStr = getPayloadString(payload.new, 'date') || getPayloadString(payload.old, 'date')
         if (!dateStr) return
-
-        const d = parseDateOnly(dateStr)
         try {
-          const { days, records } = await fetchDateRange(d, d)
-          if (days && days.length > 0) {
-            setAllRecords((prev) => replaceMealDay(prev, days[0]))
-          }
-          if (records && records.length > 0) {
-            setRawRecords((prev) => {
-              const idx = prev.findIndex((r) => r.date === dateStr)
-              if (idx === -1) return [...prev, records[0]]
-              const copy = [...prev]
-              copy[idx] = records[0]
-              return copy
-            })
-          }
+          await refreshDate(dateStr)
         } catch (err) {
           console.error("Realtime cache update error:", err)
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "meal_ratings" }, async (payload) => {
+        const recordId = getPayloadString(payload.new, 'meal_record_id') || getPayloadString(payload.old, 'meal_record_id')
+        if (!recordId) return
+        try {
+          const { data: record } = await supabase.from('meal_records').select('date').eq('id', recordId).maybeSingle()
+          if (record?.date) await refreshDate(record.date)
+        } catch (err) {
+          console.error("Realtime rating update error:", err)
         }
       })
       .subscribe()

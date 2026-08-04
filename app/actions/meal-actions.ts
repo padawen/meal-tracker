@@ -82,7 +82,7 @@ export async function saveMealAction(
         return buildConflictResponse(supabase, existing)
     }
 
-    let mutation: PostgrestSingleResponse<{ created_at: string }>
+    let mutation: PostgrestSingleResponse<{ id: string; created_at: string }>
 
     if (existing) {
         mutation = await supabase
@@ -95,7 +95,7 @@ export async function saveMealAction(
                 team: record.team,
             })
             .eq('id', existing.id)
-            .select('created_at')
+            .select('id, created_at')
             .single()
     } else {
         mutation = await supabase
@@ -104,7 +104,7 @@ export async function saveMealAction(
                 ...record,
                 recorded_by: user.id,
             })
-            .select('created_at')
+            .select('id, created_at')
             .single()
     }
 
@@ -124,7 +124,7 @@ export async function saveMealAction(
     }
 
     revalidatePath('/')
-    return { success: true, timestamp: updatedRecord?.created_at }
+    return { success: true, recordId: updatedRecord?.id, timestamp: updatedRecord?.created_at }
 }
 
 export async function deleteMealAction(date: string) {
@@ -154,5 +154,49 @@ export async function deleteMealAction(date: string) {
     }
 
     revalidatePath('/')
+    return { success: true }
+}
+
+export async function saveMealRatingAction(mealRecordId: string, rating: number) {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return { success: false, error: 'Az értékelésnek 1 és 5 között kell lennie' }
+    }
+
+    const { supabase, user } = await getAuthenticatedServerUser()
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_approved, is_admin')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (!profile?.is_approved && !profile?.is_admin) {
+        return { success: false, error: 'Csak jóváhagyott felhasználó értékelhet' }
+    }
+
+    const { data: meal } = await supabase
+        .from('meal_records')
+        .select('id, had_meal')
+        .eq('id', mealRecordId)
+        .maybeSingle()
+
+    if (!meal?.had_meal) {
+        return { success: false, error: 'Csak meglévő étkezés értékelhető' }
+    }
+
+    const { error } = await supabase.from('meal_ratings').insert({
+        meal_record_id: mealRecordId,
+        user_id: user.id,
+        rating,
+    })
+
+    if (error) {
+        if (error.code === '23505') {
+            return { success: false, error: 'Ezt a napot már értékelted' }
+        }
+        return { success: false, error: error.message || 'Nem sikerült menteni az értékelést' }
+    }
+
+    revalidatePath('/')
+    revalidatePath('/statistics')
     return { success: true }
 }

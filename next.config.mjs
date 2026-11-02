@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typedRoutes: true,
+  experimental: {
+    serverActions: { bodySizeLimit: '2mb' },
+  },
   async headers() {
     // Analytics uses an external debug script only during development;
     // production loads /_vercel/insights/script.js from this origin.

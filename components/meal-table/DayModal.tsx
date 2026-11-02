@@ -24,7 +24,7 @@ import { MealPhoto } from './MealPhoto'
 interface DayModalProps {
   day: DayData
   onClose: () => void
-  onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B", mealImageUrl?: string) => void
+  onSave: (day: DayData, hadFood: boolean, details: string, team?: "A" | "B", mealImageUrl?: string | null) => void
   onDelete?: (day: DayData) => void
   onRate?: (day: DayData, rating: number) => void
   isSaving?: boolean
@@ -445,8 +445,8 @@ export function DayModal({
 
   const handleSave = () => {
     if (hadFood !== null) {
-      const savedImage = imageChanged.current ? mealImageUrl : remoteImage.url || mealImageUrl
-      onSave(day, hadFood, details, team || undefined, hadFood ? savedImage || undefined : undefined)
+      const imageChange = !hadFood ? null : imageChanged.current ? mealImageUrl || null : undefined
+      onSave(day, hadFood, details, team || undefined, imageChange)
     }
   }
 
@@ -861,7 +861,7 @@ export function DayModal({
             {canEdit && (
               <Button
                 onClick={handleSave}
-                disabled={hadFood === null || isBusy || isPreparingImage || imageNotReady}
+                disabled={hadFood === null || isBusy || isPreparingImage}
                 className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer inline-flex items-center justify-center"
               >
                 {isSaving ? <Spinner className="size-4 text-white" /> : "Mentés"}

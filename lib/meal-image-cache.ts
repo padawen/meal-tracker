@@ -1,3 +1,5 @@
+import { MEAL_IMAGE_CACHE_TTL, type MealImageVariant } from './meal-image-storage'
+
 export type ImageState =
   | { status: 'idle' | 'loading'; url?: undefined }
   | { status: 'ready'; url: string | null }
@@ -11,34 +13,51 @@ export class MealImageCache {
   private listeners = new Set<() => void>()
   private pending = new Map<string, Promise<void>>()
   private versions = new Map<string, number>()
+  private expires = new Map<string, number>()
   private queue: { id: string; priority: number; run: () => Promise<void> }[] = []
   private running = 0
 
-  constructor(private fetchImage: (id: string) => Promise<string | null>, private capacity = 12) {}
+  constructor(private fetchImage: (id: string, variant: MealImageVariant) => Promise<string | null>, private capacity = 12) {}
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
   }
-  get = (id?: string): ImageState => id ? this.entries.get(id) || IDLE : IDLE
+  private key(id: string, variant: MealImageVariant) { return variant === 'full' ? id : `${id}:thumbnail` }
+  getExpiresAt = (id: string, variant: MealImageVariant = 'full') => this.expires.get(this.key(id, variant))
+  get = (id?: string, variant: MealImageVariant = 'full'): ImageState => {
+    if (!id) return IDLE
+    const key = this.key(id, variant)
+    if ((this.expires.get(key) ?? Infinity) <= Date.now()) return IDLE
+    return this.entries.get(key) || IDLE
+  }
   private emit() { this.listeners.forEach((listener) => listener()) }
   private trim() {
     const settled = [...this.entries].filter(([, value]) => value.status !== 'loading')
-    for (const [id] of settled.slice(0, Math.max(0, settled.length - this.capacity))) this.entries.delete(id)
+    for (const [id] of settled.slice(0, Math.max(0, settled.length - this.capacity))) {
+      this.entries.delete(id)
+      this.expires.delete(id)
+    }
   }
-  invalidate(id: string) {
-    this.versions.set(id, (this.versions.get(id) || 0) + 1)
-    this.entries.delete(id)
-    this.pending.delete(id)
+  invalidate(id: string, variant?: MealImageVariant) {
+    for (const size of variant ? [variant] : ['full', 'thumbnail'] as const) {
+      const key = this.key(id, size)
+      this.versions.set(key, (this.versions.get(key) || 0) + 1)
+      this.entries.delete(key)
+      this.pending.delete(key)
+      this.expires.delete(key)
+    }
     this.emit()
   }
   seed(id: string, url: string | null) {
     this.invalidate(id)
     this.entries.set(id, { status: 'ready', url })
+    this.expires.set(id, Date.now() + MEAL_IMAGE_CACHE_TTL)
     this.trim()
     this.emit()
   }
-  load(id: string, priority = 0): Promise<void> {
-    const entry = this.entries.get(id)
+  load(recordId: string, priority = 0, variant: MealImageVariant = 'full'): Promise<void> {
+    const id = this.key(recordId, variant)
+    const entry = this.get(recordId, variant)
     if (entry?.status === 'ready') {
       this.entries.delete(id)
       this.entries.set(id, entry)
@@ -51,14 +70,18 @@ export class MealImageCache {
       return pending
     }
     const version = this.versions.get(id) || 0
+    this.expires.delete(id)
     this.entries.set(id, { status: 'loading' })
     let resolve!: () => void
     const promise = new Promise<void>((done) => { resolve = done })
     this.pending.set(id, promise)
     this.queue.push({ id, priority, run: async () => {
       try {
-        const url = await this.fetchImage(id)
-        if ((this.versions.get(id) || 0) === version) this.entries.set(id, { status: 'ready', url })
+        const url = await this.fetchImage(recordId, variant)
+        if ((this.versions.get(id) || 0) === version) {
+          this.entries.set(id, { status: 'ready', url })
+          this.expires.set(id, Date.now() + MEAL_IMAGE_CACHE_TTL)
+        }
       } catch {
         if ((this.versions.get(id) || 0) === version) this.entries.set(id, { status: 'error' })
       } finally {

@@ -17,7 +17,7 @@ vi.mock('@/lib/supabase/client', () => ({ supabase: {
       lte: (key: string, value: string) => { filters.push((row) => String(row[key]) <= value); return query },
       gt: (key: string, value: string) => { filters.push((row) => String(row[key]) > value); return query },
       eq: (key: string, value: string) => { filters.push((row) => row[key] === value); return query },
-      not: () => query, neq: () => query, order: () => query,
+      not: () => query, neq: () => query, or: () => query, order: () => query,
       limit: (value: number) => { limit = value; return query },
       then: (resolve: (value: unknown) => unknown) => {
         mock.calls.push({ table, select: columns, limit })

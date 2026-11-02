@@ -47,7 +47,7 @@ describe('paging inside an open meal dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Szerkesztés' }))
     expect((screen.getByLabelText('Mit ettünk?') as HTMLInputElement).value).toBe('Második étel')
     fireEvent.click(screen.getByRole('button', { name: 'Mentés' }))
-    expect(handlers.onSave).toHaveBeenCalledWith(second, true, 'Második étel', 'B', 'photo-second')
+    expect(handlers.onSave).toHaveBeenCalledWith(second, true, 'Második étel', 'B', undefined)
   })
 
 })

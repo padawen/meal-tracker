@@ -55,7 +55,7 @@ export function DayItem({ day, onClick, allowImageLoad = true }: DayItemProps) {
         observer.observe(element.current)
         return () => observer.disconnect()
     }, [])
-    const image = useMealImage(day.hasImage ? day.recordId : undefined, visible && allowImageLoad, 1)
+    const image = useMealImage(day.hasImage ? day.recordId : undefined, visible && allowImageLoad, 1, 'thumbnail')
     const isDisabled = isFutureDate(day.date) || day.isHoliday
 
     const getStatusBg = (status: FoodStatus) => {

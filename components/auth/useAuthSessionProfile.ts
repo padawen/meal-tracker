@@ -14,6 +14,10 @@ export function useAuthSessionProfile() {
   const [profile, setProfile] = useState<AuthProfile | null>(null)
   const activeUser = useRef<string | null>(null)
   const requestVersion = useRef(0)
+  const currentProfile = useRef<AuthProfile | null>(null)
+  const pendingProfile = useRef<{
+    userId: string; version: number; again: boolean; promise: Promise<void>
+  } | null>(null)
 
   // INITIAL_SESSION is the single initialization path; repeated SIGNED_IN and
   // TOKEN_REFRESHED events for this user do not recreate the profile channel.
@@ -23,6 +27,7 @@ export function useAuthSessionProfile() {
       if (activeUser.current !== (nextUser?.id ?? null)) {
         activeUser.current = nextUser?.id ?? null
         requestVersion.current++
+        currentProfile.current = null
         setProfile(null)
         setLoading(Boolean(nextUser))
       }
@@ -40,16 +45,35 @@ export function useAuthSessionProfile() {
   }, [router])
 
   const userId = user?.id
-  const loadProfile = useCallback(async () => {
-    if (!userId || activeUser.current !== userId) return
-    const version = ++requestVersion.current
-    const { data, error } = await supabase.from('profiles')
-      .select('id, email, full_name, avatar_url, is_admin, is_approved')
-      .eq('id', userId).maybeSingle<AuthProfile>()
-    if (activeUser.current !== userId || version !== requestVersion.current) return
-    if (error || !data) throw error || new Error('Profile not found')
-    setProfile(data)
-    setLoading(false)
+  const loadProfile = useCallback((): Promise<void> => {
+    if (!userId || activeUser.current !== userId) return Promise.resolve()
+    const pending = pendingProfile.current
+    if (pending?.userId === userId && pending.version === requestVersion.current) {
+      // One authoritative result for manual refresh and Realtime. Queue one
+      // trailing read if an UPDATE arrived after the current read started.
+      pending.again = true
+      return pending.promise
+    }
+    const request = { userId, version: ++requestVersion.current, again: false, promise: Promise.resolve() }
+    pendingProfile.current = request
+    request.promise = (async () => {
+      let nextProfile: AuthProfile
+      do {
+        request.again = false
+        const { data, error } = await supabase.from('profiles')
+          .select('id, email, full_name, avatar_url, is_admin, is_approved')
+          .eq('id', userId).maybeSingle<AuthProfile>()
+        if (activeUser.current !== userId || request.version !== requestVersion.current) return
+        if (error || !data) throw error || new Error('Profile not found')
+        nextProfile = data
+      } while (request.again)
+      currentProfile.current = nextProfile
+      setProfile(nextProfile)
+      setLoading(false)
+    })().finally(() => {
+      if (pendingProfile.current === request) pendingProfile.current = null
+    })
+    return request.promise
   }, [userId])
 
   useEffect(() => {
@@ -60,7 +84,9 @@ export function useAuthSessionProfile() {
         if (!active) return
         console.error('Failed to load auth profile:', error)
         setLoading(false)
-        router.replace('/login')
+        // A temporary background failure must not destroy an already loaded
+        // session or the profile editor's draft/retry state.
+        if (!currentProfile.current) router.replace('/login')
       })
     }
     // A unique topic also isolates Strict Mode's delayed asynchronous cleanup.
@@ -86,6 +112,7 @@ export function useAuthSessionProfile() {
   const signOut = useCallback(async () => {
     activeUser.current = null
     requestVersion.current++
+    currentProfile.current = null
     setUser(null)
     setProfile(null)
     await supabase.auth.signOut()

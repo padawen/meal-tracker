@@ -25,6 +25,19 @@ beforeEach(async () => {
   mocks.rate.mockReset().mockResolvedValue({ success: true })
 })
 const options = () => ({ userId: 'user', toast: vi.fn(), setSelectedDay: vi.fn() })
+it('preserves a photo and its cache when only meal details change', async () => {
+  const { result } = renderHook(() => useMealTableMutations(options()))
+  await act(async () => { await result.current.handleSave(day, true, 'Másik név', 'B') })
+  expect(cache.getSnapshot().records[0]).toMatchObject({ meal_name: 'Másik név', has_image: true })
+  expect(images.get(row.id)).toEqual({ status: 'ready', url: 'original-photo' })
+  expect(mocks.save.mock.calls[0][0].meal_image_url).toBeUndefined()
+})
+it('uses explicit null to remove a photo without changing the meal status', async () => {
+  const { result } = renderHook(() => useMealTableMutations(options()))
+  await act(async () => { await result.current.handleSave(day, true, 'Leves', 'A', null) })
+  expect(cache.getSnapshot().records[0]).toMatchObject({ had_meal: true, has_image: false })
+  expect(mocks.save.mock.calls[0][0].meal_image_url).toBeNull()
+})
 it('replaces/removes photos and updates the canonical calendar/statistics record on save', async () => {
   const { result } = renderHook(() => useMealTableMutations(options()))
   await act(async () => { await result.current.handleSave(day, true, 'Új étel', 'B', 'new-photo') })

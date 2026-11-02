@@ -17,12 +17,12 @@ export function useMealTableMutations({ setSelectedDay, toast, userId }: Options
   const [confettiVariant, setConfettiVariant] = useState<'celebration' | 'sad' | null>(null)
   const [pendingAction, setPendingAction] = useState<'save' | 'delete' | 'rate' | null>(null)
   const fail = (description: string) => toast({ title: 'Hiba', description, variant: 'destructive' })
-  const handleSave = async (day: MealDayData, hadFood: boolean, details: string, team?: 'A' | 'B', mealImageUrl?: string) => {
+  const handleSave = async (day: MealDayData, hadFood: boolean, details: string, team?: 'A' | 'B', mealImageUrl?: string | null) => {
     setPendingAction('save')
     try {
       const date = formatDateOnly(day.date)
       const response = await saveMealAction({ date, had_meal: hadFood, meal_name: hadFood ? details : null,
-        meal_image_url: hadFood ? mealImageUrl || null : null, reason: hadFood ? null : details, team: team || null })
+        meal_image_url: hadFood ? mealImageUrl : null, reason: hadFood ? null : details, team: team || null })
       if (!response.success) {
         if ('conflict' in response && response.conflict) {
           setSelectedDay(null)
@@ -33,10 +33,10 @@ export function useMealTableMutations({ setSelectedDay, toast, userId }: Options
       }
       const id = response.recordId || day.recordId
       cache.update(date, { id, date, had_meal: hadFood, meal_name: hadFood ? details : null,
-        reason: hadFood ? null : details, has_image: hadFood && Boolean(mealImageUrl), team: team || null,
+        reason: hadFood ? null : details, has_image: hadFood && (mealImageUrl === undefined ? Boolean(day.hasImage) : Boolean(mealImageUrl)), team: team || null,
         recorded_by: userId, created_at: response.timestamp || new Date().toISOString(),
         ...(hadFood ? {} : { rating_count: 0, rating_sum: 0, rating_average: null, my_rating: null }) })
-      if (id) images.seed(id, hadFood ? mealImageUrl || null : null)
+      if (id && (!hadFood || mealImageUrl !== undefined)) images.seed(id, hadFood ? mealImageUrl || null : null)
       setConfettiVariant(hadFood ? 'celebration' : 'sad')
       setTimeout(() => setConfettiVariant(null), 3000)
       toast({ title: 'Sikeres mentés', description: 'Frissítve' })

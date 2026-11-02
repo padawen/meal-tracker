@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { formatDateOnly } from '@/lib/utils'
+import { MEAL_IMAGE_BUCKET, MEAL_IMAGE_URL_TTL, mealImageObjectPath, type MealImageVariant } from './meal-image-storage'
 
 export type FoodStatus = 'volt' | 'nem' | 'empty'
 export type TeamCode = 'A' | 'B'
@@ -99,8 +100,9 @@ async function fetchImageDates(start: string, end: string) {
   let cursor: string | undefined
   while (true) {
     let query = supabase.from('meal_records').select('id,date')
-      .gte('date', start).lte('date', end).not('meal_image_url', 'is', null)
-      .neq('meal_image_url', '').order('date').limit(PAGE_SIZE)
+      .gte('date', start).lte('date', end)
+      .or('meal_image_path.not.is.null,and(meal_image_url.not.is.null,meal_image_url.neq.)')
+      .order('date').limit(PAGE_SIZE)
     if (cursor) query = query.gt('date', cursor)
     const { data, error } = await query
     if (error) throw error
@@ -163,7 +165,7 @@ export async function fetchMealNeighbor(date: string, direction: 'previous' | 'n
   let query = supabase.from('meal_records').select('id,date').eq('had_meal', true)
     .gte('date', formatDateOnly(MEAL_TRACKING_START))
     .lte('date', formatDateOnly(new Date()))
-  if (!voting) query = query.not('meal_image_url', 'is', null).neq('meal_image_url', '')
+  if (!voting) query = query.or('meal_image_path.not.is.null,and(meal_image_url.not.is.null,meal_image_url.neq.)')
   query = direction === 'previous' ? query.lt('date', date) : query.gt('date', date)
   const { data, error } = await query.order('date', { ascending: direction === 'next' }).limit(1).maybeSingle()
   if (error) throw error
@@ -178,7 +180,19 @@ export async function fetchLatestVotingMeal() {
   return data
 }
 
-export async function fetchMealImage(recordId: string) {
+export async function fetchMealImage(recordId: string, variant: MealImageVariant = 'full') {
+  const { data: image, error: pathError } = await supabase.from('meal_records').select('meal_image_path')
+    .eq('id', recordId).maybeSingle()
+  if (pathError) throw pathError
+  if (image?.meal_image_path) {
+    const { data, error } = await supabase.storage.from(MEAL_IMAGE_BUCKET)
+      .createSignedUrl(mealImageObjectPath(image.meal_image_path, variant), MEAL_IMAGE_URL_TTL)
+    if (error) throw error
+    if (!data?.signedUrl) throw new Error('Nem sikerült betölteni a képet')
+    return data.signedUrl
+  }
+  // During rollout the old application still reads this field. Never select it
+  // for migrated records: it can contain hundreds of kilobytes of base64.
   const { data, error } = await supabase.from('meal_records').select('meal_image_url')
     .eq('id', recordId).maybeSingle()
   if (error) throw error

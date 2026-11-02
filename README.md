@@ -32,3 +32,7 @@ The focused Vitest suite covers auth/Realtime lifecycle, bounded image loading, 
 The application connects to the existing Supabase project. Its schema and applied migration history live in Supabase; this repository does not provide a complete database bootstrap/migration chain. The old local SQL snapshots were removed during cleanup and remain available in Git history.
 
 Keep `lib/supabase/database.types.ts` aligned with database changes. The daily reminder Edge Function remains in `supabase/functions/daily-reminder/`; its deployment settings and secrets are managed separately in Supabase.
+
+`supabase/storage.sql` defines the additive private-photo setup: the `meal_image_path` column, the `meal-photos` bucket and owner/approved-user policies. New uploads store separate 1280px photos and 384px thumbnails; image URLs are signed for 20 minutes and the memory cache expires them after 15 minutes. Existing inline photos remain readable during rollout. Migrated rows retain their legacy payload until the new application is deployed, so the old deployment keeps working. Metadata-only edits preserve photos; replacements use new object paths and remove old objects after a successful save.
+
+The proxy verifies signed JWT claims and reads fresh approval/admin status on each protected request. Its `Server-Timing` response header separates `auth` and `profile` latency; authorization is never cached across users or requests. Server Actions still validate the current user with Auth.

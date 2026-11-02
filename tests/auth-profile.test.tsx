@@ -1,15 +1,19 @@
 import { StrictMode } from 'react'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthSessionProfile } from '@/components/auth/useAuthSessionProfile'
+import { AuthGuard } from '@/components/auth/AuthGuard'
+import { TopBar } from '@/components/layout/TopBar'
 
 const mock = vi.hoisted(() => ({
   listeners: new Set<(event: string, session: unknown) => void>(),
   replace: vi.fn(), profile: vi.fn(), update: vi.fn(), channels: [] as { topic: string; callback?: () => void; subscribed: boolean }[],
   remove: vi.fn(), initial: null as unknown,
+  save: vi.fn(),
 }))
 vi.mock('next/navigation', () => ({ useRouter: () => router }))
 const router = { replace: mock.replace }
+vi.mock('@/app/actions/user-actions', () => ({ updateProfileAction: mock.save }))
 vi.mock('@/lib/supabase/client', () => ({ supabase: {
   auth: {
     onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
@@ -47,7 +51,9 @@ beforeEach(() => {
   mock.update.mockReset().mockResolvedValue({ error: null })
   mock.remove.mockReset().mockImplementation(() => new Promise(() => {}))
   mock.replace.mockClear()
+  mock.save.mockReset().mockResolvedValue({ success: true })
 })
+afterEach(cleanup)
 describe('auth profile lifecycle', () => {
   it('initializes once in Strict Mode and ignores repeated same-user auth events', async () => {
     const { result } = renderHook(() => useAuthSessionProfile(), { wrapper: StrictMode })
@@ -93,4 +99,26 @@ it('discards a pending profile response after SIGNED_OUT', async () => {
   expect(result.current.user).toBeNull()
   expect(result.current.profile).toBeNull()
   expect(result.current.loading).toBe(false)
+})
+
+it('keeps the profile draft and retry UI when Realtime overlaps a failed post-save refresh', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  render(<AuthGuard><TopBar currentPage="kaja" isAdmin={false} /></AuthGuard>)
+  fireEvent.keyDown(await screen.findByRole('button', { name: /Szia,/ }), { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Profil beállítások' }))
+  fireEvent.change(screen.getByLabelText('Becenév / Teljes név'), { target: { value: 'Új név' } })
+  let resolveFailure!: (value: unknown) => void
+  const failedRefresh = new Promise(resolve => { resolveFailure = resolve })
+  mock.profile.mockImplementation(() => failedRefresh)
+  fireEvent.click(screen.getByRole('button', { name: 'Mentés' }))
+  await waitFor(() => expect(mock.profile).toHaveBeenCalledTimes(2))
+  act(() => mock.channels[0].callback?.())
+  await act(async () => resolveFailure({ data: null, error: new Error('network') }))
+  expect((await screen.findByRole('alert')).textContent).toContain('A nevet elmentettük')
+  expect(mock.replace).not.toHaveBeenCalled()
+  expect((screen.getByLabelText('Becenév / Teljes név') as HTMLInputElement).value).toBe('Új név')
+  mock.profile.mockResolvedValue({ data: { ...profile('a'), full_name: 'Új név' }, error: null })
+  fireEvent.click(await screen.findByRole('button', { name: 'Frissítés újra' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(mock.save).toHaveBeenCalledTimes(1)
 })

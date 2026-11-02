@@ -8,6 +8,27 @@ function deferred<T>() {
 }
 
 describe('photo cache', () => {
+  it('keeps thumbnails independent from full images and invalidates both on replacement', async () => {
+    const fetch = vi.fn(async (id: string, variant: string) => `${id}:${variant}`)
+    const cache = new MealImageCache(fetch)
+    await cache.load('a', 1, 'thumbnail')
+    await cache.load('a', 0, 'full')
+    expect(cache.get('a', 'thumbnail')).toEqual({ status: 'ready', url: 'a:thumbnail' })
+    expect(cache.get('a')).toEqual({ status: 'ready', url: 'a:full' })
+    cache.invalidate('a')
+    expect(cache.get('a', 'thumbnail').status).toBe('idle')
+    expect(cache.get('a').status).toBe('idle')
+  })
+  it('refreshes signed URLs before expiry instead of returning stale cached URLs', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    const cache = new MealImageCache(async () => 'signed-photo')
+    await cache.load('a')
+    clock.mockReturnValue(1_000 + 15 * 60 * 1_000 + 1)
+    expect(cache.get('a').status).toBe('idle')
+    await cache.load('a')
+    expect(cache.get('a')).toEqual({ status: 'ready', url: 'signed-photo' })
+    clock.mockRestore()
+  })
   it('deduplicates a selected photo and limits downloads to two', async () => {
     const a = deferred<string>(), b = deferred<string>(), c = deferred<string>()
     const fetch = vi.fn().mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise).mockReturnValueOnce(c.promise)

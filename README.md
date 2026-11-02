@@ -8,10 +8,9 @@ Requires Node.js 24 LTS (>=24.15.0, <25). Use npm and commit `package-lock.json`
 
 ```sh
 npm ci
-cp .env.example .env.local
 ```
 
-Fill in the Supabase project URL and publishable/anon key in `.env.local`. `NEXT_PUBLIC_MASTER_ADMIN_IDS` is optional. Keep real environment files out of Git. Then start the app:
+Create `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. `NEXT_PUBLIC_MASTER_ADMIN_IDS` is optional. Keep environment files out of Git. Then start the app:
 
 ```sh
 npm run dev

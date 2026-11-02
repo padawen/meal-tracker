@@ -31,8 +31,6 @@ next-env.d.ts
 
 # local environment and credentials
 .env*
-!.env.example
-!.env.*.example
 *.pem
 /.aws/
 .codex

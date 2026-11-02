@@ -25,6 +25,10 @@ function withSupabaseCookies(target: NextResponse, source: NextResponse) {
   source.cookies.getAll().forEach((cookie) => {
     target.cookies.set(cookie)
   })
+  for (const name of ['cache-control', 'expires', 'pragma', 'server-timing']) {
+    const value = source.headers.get(name)
+    if (value) target.headers.set(name, value)
+  }
 
   return target
 }
@@ -41,6 +45,7 @@ function loginRedirect(request: NextRequest, supabaseResponse: NextResponse) {
 }
 
 export async function proxy(request: NextRequest) {
+  const start = performance.now()
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -50,12 +55,13 @@ export async function proxy(request: NextRequest) {
       getAll() {
         return request.cookies.getAll()
       },
-      setAll(cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }>) {
+      setAll(cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }>, headers: Record<string, string>) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
         supabaseResponse = NextResponse.next({ request })
         cookiesToSet.forEach(({ name, value, options }) => {
           supabaseResponse.cookies.set(name, value, options)
         })
+        Object.entries(headers).forEach(([name, value]) => supabaseResponse.headers.set(name, value))
       },
     },
   })
@@ -69,11 +75,14 @@ export async function proxy(request: NextRequest) {
   }
 
   const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+    data,
+    error: claimsError,
+  } = await supabase.auth.getClaims()
+  const authDuration = performance.now() - start
+  const userId = data?.claims?.sub
+  supabaseResponse.headers.set('Server-Timing', `auth;dur=${authDuration.toFixed(1)}`)
 
-  if (userError || !user) {
+  if (claimsError || typeof userId !== 'string' || !userId) {
     if (isProtectedRoute(pathname) || isPendingApprovalRoute(pathname)) {
       return loginRedirect(request, supabaseResponse)
     }
@@ -81,11 +90,13 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
+  const profileStart = performance.now()
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, is_admin, is_approved')
-    .eq('id', user.id)
+    .eq('id', userId)
     .maybeSingle()
+  supabaseResponse.headers.set('Server-Timing', `auth;dur=${authDuration.toFixed(1)}, profile;dur=${(performance.now() - profileStart).toFixed(1)}`)
 
   if (profileError || !profile) {
     return loginRedirect(request, supabaseResponse)

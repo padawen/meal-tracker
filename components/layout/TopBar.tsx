@@ -32,6 +32,8 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
 
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [nicknameInput, setNicknameInput] = useState("")
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [needsRefresh, setNeedsRefresh] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const handleSaveProfile = async () => {
@@ -45,17 +47,27 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
     const finalValue = newName === "" ? null : newName
 
     startTransition(async () => {
+      setProfileError(null)
       try {
-        await updateProfileAction(finalValue)
+        if (!needsRefresh) await updateProfileAction(finalValue)
+      } catch {
+        setProfileError('Nem sikerült menteni a nevet. Próbáld újra; a beírt neved megmaradt.')
+        return
+      }
+      try {
         await refreshProfile()
         setIsProfileOpen(false)
-      } catch (error) {
-        console.error('Error updating profile:', error)
+        setNeedsRefresh(false)
+      } catch {
+        setNeedsRefresh(true)
+        setProfileError('A nevet elmentettük, de nem sikerült frissíteni a megjelenített profilt. Próbáld újra a frissítést.')
       }
     })
   }
 
   const openProfileSettings = () => {
+    setProfileError(null)
+    setNeedsRefresh(false)
     setNicknameInput(profile.full_name || "")
     setIsProfileOpen(true)
   }
@@ -139,7 +151,12 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
               <Input
                 id="nickname"
                 value={nicknameInput}
-                onChange={(e) => setNicknameInput(e.target.value)}
+                disabled={isPending}
+                onChange={(e) => {
+                  setNicknameInput(e.target.value)
+                  setNeedsRefresh(false)
+                  setProfileError(null)
+                }}
                 placeholder="Pl.: Niki, vagy Minta János..."
                 className="w-full"
               />
@@ -148,12 +165,13 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
               </DialogDescription>
             </div>
           </div>
+          {profileError && <p role="alert" className="text-sm text-rose-700">{profileError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsProfileOpen(false)} disabled={isPending} className="cursor-pointer">
               Mégse
             </Button>
             <Button onClick={handleSaveProfile} disabled={isPending} className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white">
-              {isPending ? "Mentés..." : "Mentés"}
+              {isPending ? (needsRefresh ? "Frissítés..." : "Mentés...") : needsRefresh ? "Frissítés újra" : "Mentés"}
             </Button>
           </DialogFooter>
         </DialogContent>

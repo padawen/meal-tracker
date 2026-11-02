@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 
 import { publicEnv } from '@/lib/env'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
@@ -12,7 +13,7 @@ type ViewerProfile = {
   is_approved: boolean
 }
 
-export async function getAuthenticatedServerUser() {
+export const getAuthenticatedServerUser = cache(async () => {
   const supabase = await createSupabaseServerClient()
   const {
     data: { user },
@@ -24,9 +25,9 @@ export async function getAuthenticatedServerUser() {
   }
 
   return { supabase, user }
-}
+})
 
-async function getAuthenticatedViewerProfile() {
+const getAuthenticatedViewerProfile = cache(async () => {
   const { supabase, user } = await getAuthenticatedServerUser()
   const { data: profile, error } = await supabase
     .from('profiles')
@@ -44,7 +45,7 @@ async function getAuthenticatedViewerProfile() {
     profile,
     isMasterAdmin: publicEnv.masterAdminIds.includes(user.id),
   }
-}
+})
 
 export async function requireAdminViewer() {
   const viewer = await getAuthenticatedViewerProfile()

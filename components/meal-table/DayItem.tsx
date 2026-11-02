@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from "react"
+import { useMealImage } from "./useMealImage"
+
 import { CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import type { FoodStatus, MealDayData as DayData } from "@/lib/meal-domain"
 
@@ -5,18 +8,8 @@ export type { FoodStatus, MealDayData as DayData } from "@/lib/meal-domain"
 
 interface DayItemProps {
     day: DayData
+    allowImageLoad?: boolean
     onClick: () => void
-}
-
-const getStatusStyles = (status: FoodStatus) => {
-    switch (status) {
-        case "volt":
-            return "bg-emerald-50 border-emerald-200 hover:border-emerald-300"
-        case "nem":
-            return "bg-rose-50 border-rose-200 hover:border-rose-300"
-        default:
-            return "bg-amber-50 border-amber-200 hover:border-amber-300"
-    }
 }
 
 const getStatusIcon = (status: FoodStatus) => {
@@ -53,7 +46,16 @@ const isFutureDate = (date: Date) => {
     return d.getTime() > t.getTime()
 }
 
-export function DayItem({ day, onClick }: DayItemProps) {
+export function DayItem({ day, onClick, allowImageLoad = true }: DayItemProps) {
+    const element = useRef<HTMLButtonElement>(null)
+    const [visible, setVisible] = useState(false)
+    useEffect(() => {
+        if (!element.current) return
+        const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: '160px' })
+        observer.observe(element.current)
+        return () => observer.disconnect()
+    }, [])
+    const image = useMealImage(day.hasImage ? day.recordId : undefined, visible && allowImageLoad, 1)
     const isDisabled = isFutureDate(day.date) || day.isHoliday
 
     const getStatusBg = (status: FoodStatus) => {
@@ -70,6 +72,7 @@ export function DayItem({ day, onClick }: DayItemProps) {
 
     return (
         <button
+            ref={element}
             onClick={onClick}
             disabled={isDisabled}
             className={`w-full p-4 rounded-2xl border-2 transition-all duration-200 text-left flex flex-col gap-3 cursor-pointer relative overflow-hidden ${day.isHoliday
@@ -79,11 +82,13 @@ export function DayItem({ day, onClick }: DayItemProps) {
                     : `${getStatusBg(day.status)} ${getTeamBorder(day.team)}`
                 } ${isToday(day.date) ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
         >
-            {day.mealImageUrl && !day.isHoliday && (
+            {visible && image.url && !day.isHoliday && (
                 <div className="absolute inset-0 z-0 pointer-events-none rounded-2xl overflow-hidden" aria-hidden="true">
                     <img
-                        src={day.mealImageUrl}
+                        src={image.url}
                         alt=""
+                        decoding="async"
+                        loading="lazy"
                         className="h-full w-full object-cover opacity-[0.22]"
                     />
                 </div>

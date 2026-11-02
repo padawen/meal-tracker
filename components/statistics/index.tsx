@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { LoadingState } from "@/components/meal-table/LoadingState"
 import { TabNavigation } from "@/components/shared"
 import { HistoryTab } from "./HistoryTab"
 import { GeneralTab } from "./GeneralTab"
@@ -28,7 +28,7 @@ export function Statistics() {
     const [historyYear, setHistoryYear] = useState<string>(new Date().getFullYear().toString())
 
     const {
-        loading,
+        status, retry,
         weekStats, monthStats, yearStats,
         teamAWeekStats, teamBWeekStats,
         teamAMonthStats, teamBMonthStats,
@@ -36,15 +36,7 @@ export function Statistics() {
         historyYears, rawRecords, holidays, allUsers, userStats,
         elapsedDaysOfYear, totalDaysOfYear,
         elapsedHolidaysOfYear, totalHolidaysOfYear
-    } = useStatsData()
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-            </div>
-        )
-    }
+    } = useStatsData(activeTab, historyYear)
 
     return (
         <div className="space-y-4">
@@ -81,6 +73,7 @@ export function Statistics() {
                 </div>
             </div>
 
+            <LoadingState status={status} retry={retry} className="min-h-[400px]">
             {activeTab === "history" ? (
                 <HistoryTab
                     historyYear={historyYear}
@@ -116,6 +109,7 @@ export function Statistics() {
                     totalHolidays={totalHolidaysOfYear}
                 />
             )}
+            </LoadingState>
         </div>
     )
 }

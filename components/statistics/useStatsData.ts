@@ -1,28 +1,26 @@
-import { useState, useEffect, useMemo } from "react"
+import { useMemo } from "react"
 import {
     buildStatsDayRange,
-    fetchMealRangeData,
-    fetchProfilesByIds,
+    MEAL_TRACKING_START,
     type HolidayRow,
     type MealRecordRow,
     type ProfileSummary,
 } from "@/lib/meal-domain"
 import { PeriodStats } from "@/lib/stats-utils"
 import {
-    buildHistoryYears,
     buildUserStats,
     calculateStatsForDays,
     calculateTeamPeriodStats,
     getCurrentMonthDays,
     getCurrentWeekDays,
     getCurrentYearDays,
-    getStatisticsFetchRange,
     getYearProgress,
     type UserStat,
 } from "@/lib/statistics-domain"
 
 interface UseStatsDataReturn {
-    loading: boolean
+    status: import("@/lib/meal-cache").RangeStatus
+    retry: () => void
     weekStats: PeriodStats
     monthStats: PeriodStats
     yearStats: PeriodStats
@@ -44,19 +42,30 @@ interface UseStatsDataReturn {
 }
 
 import { useMealDataContext } from "@/components/meal-table/MealDataContext"
+import { useMealRange } from "@/components/meal-table/useMealRange"
+import { getWeekStartForDate } from "@/lib/meal-view-domain"
+import { formatDateOnly, parseDateOnly } from "@/lib/utils"
 
-export function useStatsData(): UseStatsDataReturn {
-    const { loading, rawRecords, holidays, profilesMap: allUsers, ensureRangeLoaded } = useMealDataContext()
+export function useStatsData(activeTab: 'general' | 'teams' | 'users' | 'history' | 'alltime', historyYear: string): UseStatsDataReturn {
+    const { rawRecords: cachedRecords, holidays: cachedHolidays, profilesMap: allUsers } = useMealDataContext()
     const today = useMemo(() => new Date(), [])
-
-    useEffect(() => {
-        const { start, end } = getStatisticsFetchRange(today)
-        ensureRangeLoaded(start, end)
-    }, [ensureRangeLoaded, today])
-    const allDays = useMemo(() => {
-        const { start, end } = getStatisticsFetchRange(today)
-        return buildStatsDayRange(start, end, rawRecords, holidays)
-    }, [holidays, rawRecords, today])
+    const year = activeTab === 'history' ? Number(historyYear) : today.getFullYear()
+    let start = activeTab === 'alltime' ? MEAL_TRACKING_START : new Date(year, 0, 1)
+    let end = new Date(year, 11, 31)
+    if (activeTab === 'general' || activeTab === 'teams') {
+        const weekStart = getWeekStartForDate(today)
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekEnd.getDate() + 6)
+        if (weekStart < start) start = weekStart
+        if (weekEnd > end) end = weekEnd
+    }
+    if (start < MEAL_TRACKING_START) start = MEAL_TRACKING_START
+    const { status, retry } = useMealRange(start, end)
+    const startKey = formatDateOnly(start)
+    const endKey = formatDateOnly(end)
+    const rawRecords = useMemo(() => cachedRecords.filter((record) => record.date >= startKey && record.date <= endKey), [cachedRecords, endKey, startKey])
+    const holidays = useMemo(() => cachedHolidays.filter((holiday) => holiday.date >= startKey && holiday.date <= endKey), [cachedHolidays, endKey, startKey])
+    const allDays = useMemo(() => buildStatsDayRange(parseDateOnly(startKey), parseDateOnly(endKey), rawRecords, holidays), [startKey, endKey, rawRecords, holidays])
 
     const currentWeekDays = useMemo(() => getCurrentWeekDays(allDays, today), [allDays, today])
     const currentMonthDays = useMemo(() => getCurrentMonthDays(allDays, today), [allDays, today])
@@ -73,7 +82,10 @@ export function useStatsData(): UseStatsDataReturn {
     const teamAYearStats = useMemo(() => calculateTeamPeriodStats("A", currentYearDays), [currentYearDays])
     const teamBYearStats = useMemo(() => calculateTeamPeriodStats("B", currentYearDays), [currentYearDays])
 
-    const historyYears = useMemo(() => buildHistoryYears(rawRecords, today.getFullYear()), [rawRecords, today])
+    const historyYears = useMemo(() => Array.from(
+        { length: today.getFullYear() - MEAL_TRACKING_START.getFullYear() + 1 },
+        (_, index) => String(today.getFullYear() - index),
+    ), [today])
     const userStats = useMemo(() => buildUserStats(rawRecords, allUsers, today.getFullYear()), [allUsers, rawRecords, today])
     const { elapsedDaysOfYear, totalDaysOfYear, elapsedHolidaysOfYear, totalHolidaysOfYear } = useMemo(
         () => getYearProgress(holidays, today),
@@ -81,7 +93,7 @@ export function useStatsData(): UseStatsDataReturn {
     )
 
     return {
-        loading,
+        status, retry,
         weekStats, monthStats, yearStats,
         teamAWeekStats, teamBWeekStats,
         teamAMonthStats, teamBMonthStats,

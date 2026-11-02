@@ -6,59 +6,6 @@ interface DateRange {
   end: Date
 }
 
-export function getInitialMealFetchRange(today: Date): DateRange {
-  const weekStart = getWeekStartForDate(today, 0)
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 6)
-
-  return {
-    start: weekStart < MEAL_TRACKING_START ? new Date(MEAL_TRACKING_START) : weekStart,
-    end: weekEnd,
-  }
-}
-
-export function getMealPrefetchRange(today: Date): DateRange {
-  return getMealWeekPrefetchRange(today, 0)
-}
-
-export function getMealViewPrefetchRange(
-  today: Date,
-  view: 'week' | 'month' | 'year',
-  offset: number
-): DateRange {
-  if (view === 'year') {
-    const targetYear = today.getFullYear() + offset
-    return clampRangeStart({
-      start: new Date(targetYear - 1, 0, 1),
-      end: new Date(targetYear + 2, 0, 0),
-    })
-  }
-
-  if (view === 'month') {
-    const targetMonth = new Date(today.getFullYear(), today.getMonth() + offset, 1)
-    return clampRangeStart({
-      start: new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 1, 1),
-      end: new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 2, 0),
-    })
-  }
-
-  return getMealWeekPrefetchRange(today, offset)
-}
-
-function getMealWeekPrefetchRange(today: Date, weekOffset: number): DateRange {
-  const currentWeekStart = getWeekStartForDate(today, weekOffset)
-  const prefetchStart = new Date(currentWeekStart)
-  prefetchStart.setDate(prefetchStart.getDate() - 7)
-
-  const prefetchEnd = new Date(prefetchStart)
-  prefetchEnd.setDate(prefetchStart.getDate() + 4 * 7 - 1)
-
-  return clampRangeStart({
-    start: prefetchStart,
-    end: prefetchEnd,
-  })
-}
-
 export function getRequiredMealRange(
   today: Date,
   view: 'week' | 'month' | 'year',
@@ -119,26 +66,6 @@ export function canNavigateMealBack(view: 'week' | 'month' | 'year', today: Date
   return previousMonth >= MEAL_TRACKING_START
 }
 
-export function mergeMealDayData(existing: MealDayData[], incoming: MealDayData[]) {
-  const combined = [...existing, ...incoming]
-  combined.sort((a, b) => a.date.getTime() - b.date.getTime())
-
-  return combined.filter((day, index, days) => index === 0 || day.date.getTime() !== days[index - 1].date.getTime())
-}
-
-export function replaceMealDay(existing: MealDayData[], nextDay: MealDayData) {
-  const nextDate = formatDateOnly(nextDay.date)
-  const index = existing.findIndex((day) => formatDateOnly(day.date) === nextDate)
-
-  if (index === -1) {
-    return existing
-  }
-
-  const copy = [...existing]
-  copy[index] = nextDay
-  return copy
-}
-
 export function getWeekDays(recordsByDate: Map<string, MealDayData>, today: Date, weekOffset: number) {
   const weekStart = getWeekStartForDate(today, weekOffset)
   const weekDays: MealDayData[] = []
@@ -171,7 +98,9 @@ export function getYearDays(allRecords: MealDayData[], targetYear: number) {
 export function getCurrentWeekStatsDays(allRecords: MealDayData[], today: Date) {
   const currentWeekStart = getWeekStartForDate(today)
   const weekStartTime = currentWeekStart.getTime()
-  const weekEndTime = weekStartTime + 7 * 24 * 60 * 60 * 1000
+  const weekEnd = new Date(currentWeekStart)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+  const weekEndTime = weekEnd.getTime()
 
   return allRecords.filter((day) => {
     const dayTime = day.date.getTime()
@@ -185,34 +114,6 @@ export function getCurrentMonthStatsDays(allRecords: MealDayData[], today: Date)
 
 export function countElapsedEmptyDays(allRecords: MealDayData[], today: Date) {
   return allRecords.filter((day) => day.status === 'empty' && day.date <= today && !day.isHoliday).length
-}
-
-export function expandLoadedMealRange(loadedRange: DateRange, requiredRange: DateRange) {
-  const shouldFetchBefore = requiredRange.start < loadedRange.start
-  const shouldFetchAfter = requiredRange.end > loadedRange.end
-
-  const nextStart = shouldFetchBefore ? new Date(requiredRange.start) : new Date(loadedRange.start)
-  const nextEnd = shouldFetchAfter ? new Date(requiredRange.end) : new Date(loadedRange.end)
-
-  if (nextStart < MEAL_TRACKING_START) {
-    nextStart.setTime(MEAL_TRACKING_START.getTime())
-  }
-
-  return {
-    nextRange: { start: nextStart, end: nextEnd },
-    fetchBefore: shouldFetchBefore
-      ? {
-          start: nextStart,
-          end: new Date(loadedRange.start.getFullYear(), loadedRange.start.getMonth(), loadedRange.start.getDate() - 1),
-        }
-      : null,
-    fetchAfter: shouldFetchAfter
-      ? {
-          start: new Date(loadedRange.end.getFullYear(), loadedRange.end.getMonth(), loadedRange.end.getDate() + 1),
-          end: nextEnd,
-        }
-      : null,
-  }
 }
 
 function clampRangeStart(range: DateRange): DateRange {

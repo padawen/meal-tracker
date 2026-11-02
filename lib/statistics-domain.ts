@@ -81,15 +81,6 @@ const MONTH_NAMES = [
   'December',
 ]
 
-export function getStatisticsFetchRange(today: Date) {
-  const currentYear = today.getFullYear()
-
-  return {
-    start: new Date(currentYear - 1, 0, 1),
-    end: new Date(currentYear, 11, 31),
-  }
-}
-
 export function getCurrentWeekDays(allDays: StatsCalendarDay[], today: Date) {
   const weekStart = getWeekStartForDate(today)
   const weekEnd = new Date(weekStart)
@@ -132,18 +123,6 @@ export function calculateTeamPeriodStats(team: TeamCode, days: StatsCalendarDay[
     ratingCount,
     ratingAverage: ratingCount > 0 ? ratingSum / ratingCount : null,
   }
-}
-
-export function buildHistoryYears(records: Pick<MealRecordRow, 'date'>[], currentYear: number) {
-  const uniqueYears = Array.from(new Set(records.map((record) => parseDateOnly(record.date).getFullYear()))).sort(
-    (a, b) => b - a
-  )
-
-  if (!uniqueYears.includes(currentYear)) {
-    uniqueYears.unshift(currentYear)
-  }
-
-  return uniqueYears.map(String)
 }
 
 export function buildUserStats(

@@ -1,210 +1,78 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-
+import { useState } from 'react'
 import { deleteMealAction, saveMealAction, saveMealRatingAction } from '@/app/actions/meal-actions'
 import type { MealDayData } from '@/lib/meal-domain'
+import { formatDateOnly } from '@/lib/utils'
+import { useMealDataContext } from './MealDataContext'
 
-interface MealTableMutationOptions {
-  allRecords: MealDayData[]
-  currentUserName: string
-  formatDateStr: (date: Date) => string
-  setAllRecords: (records: MealDayData[]) => void
+interface Options {
   setSelectedDay: (day: MealDayData | null) => void
-  toast: (options: {
-    title: string
-    description: string
-    variant?: 'default' | 'destructive'
-  }) => void
+  toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void
   userId: string
 }
 
-function formatTimestamp(timestamp?: string) {
-  const date = timestamp ? new Date(timestamp) : new Date()
-  return date
-    .toLocaleString('hu-HU', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    .replace(/-/g, '.')
-}
-
-export function useMealTableMutations({
-  allRecords,
-  currentUserName,
-  formatDateStr,
-  setAllRecords,
-  setSelectedDay,
-  toast,
-  userId,
-}: MealTableMutationOptions) {
+export function useMealTableMutations({ setSelectedDay, toast, userId }: Options) {
+  const { cache, images } = useMealDataContext()
   const [confettiVariant, setConfettiVariant] = useState<'celebration' | 'sad' | null>(null)
   const [pendingAction, setPendingAction] = useState<'save' | 'delete' | 'rate' | null>(null)
-  const [, startTransition] = useTransition()
-
-  const triggerConfetti = (variant: 'celebration' | 'sad') => {
-    setConfettiVariant(variant)
-    setTimeout(() => setConfettiVariant(null), 3000)
-  }
-
-  const handleSave = async (
-    dayData: MealDayData,
-    hadFood: boolean,
-    details: string,
-    team?: 'A' | 'B',
-    mealImageUrl?: string
-  ) => {
-    const dateStr = formatDateStr(dayData.date)
-
+  const fail = (description: string) => toast({ title: 'Hiba', description, variant: 'destructive' })
+  const handleSave = async (day: MealDayData, hadFood: boolean, details: string, team?: 'A' | 'B', mealImageUrl?: string) => {
     setPendingAction('save')
-    startTransition(async () => {
-      try {
-        const response = await saveMealAction({
-          date: dateStr,
-          had_meal: hadFood,
-          meal_name: hadFood ? details : null,
-          meal_image_url: hadFood ? mealImageUrl || null : null,
-          reason: !hadFood ? details : null,
-          team: team || null,
-        })
-
-        if (!response.success && response.error) {
-          if ('conflict' in response && response.conflict) {
-            setSelectedDay(null)
-          }
-          toast({ title: 'Figyelem', description: response.error, variant: 'destructive' })
-          return
+    try {
+      const date = formatDateOnly(day.date)
+      const response = await saveMealAction({ date, had_meal: hadFood, meal_name: hadFood ? details : null,
+        meal_image_url: hadFood ? mealImageUrl || null : null, reason: hadFood ? null : details, team: team || null })
+      if (!response.success) {
+        if ('conflict' in response && response.conflict) {
+          setSelectedDay(null)
+          void cache.refresh(date).catch(console.error)
         }
-
-        const savedTimestamp = 'timestamp' in response ? response.timestamp : undefined
-        const savedRecordId = 'recordId' in response ? response.recordId : undefined
-
-        triggerConfetti(hadFood ? 'celebration' : 'sad')
-
-        const indexToUpdate = allRecords.findIndex((record) => formatDateStr(record.date) === dateStr)
-        if (indexToUpdate !== -1) {
-          const updatedRecords = [...allRecords]
-          updatedRecords[indexToUpdate] = {
-            ...updatedRecords[indexToUpdate],
-            recordId: savedRecordId || updatedRecords[indexToUpdate].recordId,
-            status: hadFood ? 'volt' : 'nem',
-            food: hadFood ? details : undefined,
-            mealImageUrl: hadFood ? mealImageUrl : undefined,
-            reason: !hadFood ? details : undefined,
-            team,
-            recordedBy: currentUserName,
-            recordedByUserId: userId,
-            recordedAt: formatTimestamp(savedTimestamp),
-            ratingAverage: hadFood ? updatedRecords[indexToUpdate].ratingAverage : undefined,
-            ratingCount: hadFood ? updatedRecords[indexToUpdate].ratingCount : 0,
-            ratingSum: hadFood ? updatedRecords[indexToUpdate].ratingSum : 0,
-            myRating: hadFood ? updatedRecords[indexToUpdate].myRating : undefined,
-          }
-          setAllRecords(updatedRecords)
-        }
-
-        toast({ title: 'Sikeres mentés', description: 'Frissítve' })
-        setSelectedDay(null)
-      } catch (error) {
-        console.error('Error saving meal record:', error)
-        toast({ title: 'Hiba', description: 'Nem sikerült menteni az adatokat', variant: 'destructive' })
-      } finally {
-        setPendingAction(null)
+        fail(response.error || 'Nem sikerült menteni az adatokat')
+        return
       }
-    })
+      const id = response.recordId || day.recordId
+      cache.update(date, { id, date, had_meal: hadFood, meal_name: hadFood ? details : null,
+        reason: hadFood ? null : details, has_image: hadFood && Boolean(mealImageUrl), team: team || null,
+        recorded_by: userId, created_at: response.timestamp || new Date().toISOString(),
+        ...(hadFood ? {} : { rating_count: 0, rating_sum: 0, rating_average: null, my_rating: null }) })
+      if (id) images.seed(id, hadFood ? mealImageUrl || null : null)
+      setConfettiVariant(hadFood ? 'celebration' : 'sad')
+      setTimeout(() => setConfettiVariant(null), 3000)
+      toast({ title: 'Sikeres mentés', description: 'Frissítve' })
+      setSelectedDay(null)
+    } catch { fail('Nem sikerült menteni az adatokat') } finally { setPendingAction(null) }
   }
-
-  const handleDelete = async (dayData: MealDayData) => {
-    const dateStr = formatDateStr(dayData.date)
-
+  const handleDelete = async (day: MealDayData) => {
     setPendingAction('delete')
-    startTransition(async () => {
-      try {
-        const response = await deleteMealAction(dateStr)
-
-        if (!response.success && response.error) {
-          toast({ title: 'Figyelem', description: response.error, variant: 'destructive' })
-          return
-        }
-
-        const indexToUpdate = allRecords.findIndex((record) => formatDateStr(record.date) === dateStr)
-        if (indexToUpdate !== -1) {
-          const updatedRecords = [...allRecords]
-          updatedRecords[indexToUpdate] = {
-            ...updatedRecords[indexToUpdate],
-            status: 'empty',
-            recordId: undefined,
-            food: undefined,
-            mealImageUrl: undefined,
-            reason: undefined,
-            team: undefined,
-            recordedBy: undefined,
-            recordedByUserId: undefined,
-            recordedAt: undefined,
-            ratingAverage: undefined,
-            ratingCount: 0,
-            ratingSum: 0,
-            myRating: undefined,
-          }
-          setAllRecords(updatedRecords)
-        }
-
-        toast({ title: 'Törölve', description: 'A rekord sikeresen törölve lett.' })
-        setSelectedDay(null)
-      } catch (error) {
-        console.error('Error deleting meal record:', error)
-        toast({ title: 'Hiba', description: 'Nem sikerült törölni a rekordot', variant: 'destructive' })
-      } finally {
-        setPendingAction(null)
-      }
-    })
+    try {
+      const date = formatDateOnly(day.date)
+      const response = await deleteMealAction(date)
+      if (!response.success) { fail(response.error || 'Nem sikerült törölni a rekordot'); return }
+      cache.update(date, null)
+      if (day.recordId) images.invalidate(day.recordId)
+      toast({ title: 'Törölve', description: 'A rekord sikeresen törölve lett.' })
+      setSelectedDay(null)
+    } catch { fail('Nem sikerült törölni a rekordot') } finally { setPendingAction(null) }
   }
-
-  const handleRate = async (dayData: MealDayData, rating: number) => {
-    if (!dayData.recordId || dayData.myRating) return
-
+  const handleRate = async (day: MealDayData, rating: number) => {
+    if (!day.recordId || day.myRating) return
     setPendingAction('rate')
-    startTransition(async () => {
-      try {
-        const response = await saveMealRatingAction(dayData.recordId!, rating)
-        if (!response.success) {
-          toast({ title: 'Figyelem', description: response.error || 'Nem sikerült menteni az értékelést', variant: 'destructive' })
-          return
-        }
-
-        const indexToUpdate = allRecords.findIndex((record) => record.recordId === dayData.recordId)
-        if (indexToUpdate !== -1) {
-          const updatedRecords = [...allRecords]
-          const current = updatedRecords[indexToUpdate]
-          const nextCount = (current.ratingCount || 0) + 1
-          const nextSum = (current.ratingSum || 0) + rating
-          updatedRecords[indexToUpdate] = {
-            ...current,
-            ratingCount: nextCount,
-            ratingSum: nextSum,
-            ratingAverage: nextSum / nextCount,
-            myRating: rating,
-          }
-          setAllRecords(updatedRecords)
-        }
-        toast({ title: 'Köszönjük!', description: 'Az értékelésed rögzítve lett.' })
-      } catch (error) {
-        console.error('Error saving meal rating:', error)
-        toast({ title: 'Hiba', description: 'Nem sikerült menteni az értékelést', variant: 'destructive' })
-      } finally {
-        setPendingAction(null)
-      }
-    })
+    try {
+      const response = await saveMealRatingAction(day.recordId, rating)
+      if (!response.success) { fail(response.error || 'Nem sikerült menteni az értékelést'); return }
+      const date = formatDateOnly(day.date)
+      // The acknowledgement and Realtime can arrive in either order. Apply our
+      // vote once, then reconcile with the server without blocking the dialog.
+      cache.update(date, (current) => {
+        if (!current || current.my_rating) return current || null
+        const count = (current.rating_count || 0) + 1
+        const sum = (current.rating_sum || 0) + rating
+        return { ...current, my_rating: rating, rating_count: count, rating_sum: sum, rating_average: sum / count }
+      })
+      void cache.refresh(date).catch(console.error)
+      toast({ title: 'Köszönjük!', description: 'Az értékelésed rögzítve lett.' })
+    } catch { fail('Nem sikerült frissíteni az értékelést. Próbáld újra.') } finally { setPendingAction(null) }
   }
-
-  return {
-    confettiVariant,
-    handleDelete,
-    handleSave,
-    handleRate,
-    pendingAction,
-  }
+  return { confettiVariant, handleDelete, handleSave, handleRate, pendingAction }
 }

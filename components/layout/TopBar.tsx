@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { updateProfileAction } from "@/app/actions/user-actions"
@@ -143,9 +143,9 @@ export function TopBar({ currentPage, isAdmin }: TopBarProps) {
                 placeholder="Pl.: Niki, vagy Minta János..."
                 className="w-full"
               />
-              <p className="text-xs text-muted-foreground">
+              <DialogDescription className="text-xs">
                 Ha üresen hagyod, az eredeti regisztrált neved (vagy email címed) fog megjelenni.
-              </p>
+              </DialogDescription>
             </div>
           </div>
           <DialogFooter>

@@ -3,6 +3,8 @@ import { AlertCircle, Calendar, CheckCircle2 } from 'lucide-react'
 import { PeriodStatsCard } from '@/components/shared'
 import type { MealDayData } from '@/lib/meal-domain'
 import type { PeriodStats } from '@/lib/stats-utils'
+import type { RangeStatus } from '@/lib/meal-cache'
+import { LoadingState } from './LoadingState'
 
 interface MealOverviewCardsProps {
   allRecords: MealDayData[]
@@ -10,6 +12,9 @@ interface MealOverviewCardsProps {
   today: Date
   totalEmptyDays: number
   weekStats: PeriodStats
+  weekState: { status: RangeStatus; retry: () => void }
+  monthState: { status: RangeStatus; retry: () => void }
+  missingState: { status: RangeStatus; retry: () => void }
 }
 
 function getEmptyEmoji(totalEmptyDays: number) {
@@ -35,22 +40,27 @@ export function MealOverviewCards({
   monthStats,
   today,
   totalEmptyDays,
-  weekStats,
+  weekStats, weekState, monthState, missingState,
 }: MealOverviewCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-3">
+      <LoadingState {...weekState} className="min-h-[181px]">
       <PeriodStatsCard
         title="Ez a hét"
         stats={weekStats}
         icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
         iconBgColor="bg-emerald-100"
       />
+      </LoadingState>
+      <LoadingState {...monthState} className="min-h-[181px]">
       <PeriodStatsCard
         title="Ez a hónap"
         stats={monthStats}
         icon={<Calendar className="w-5 h-5 text-indigo-600" />}
         iconBgColor="bg-indigo-100"
       />
+      </LoadingState>
+      <LoadingState {...missingState} className="min-h-[82px]">
       <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${totalEmptyDays === 0 ? 'bg-emerald-100' : 'bg-amber-100'}`}>
@@ -81,6 +91,7 @@ export function MealOverviewCards({
           <div className="text-2xl">{totalEmptyDays === 0 ? '🥳' : getEmptyEmoji(totalEmptyDays)}</div>
         </div>
       </div>
+      </LoadingState>
     </div>
   )
 }

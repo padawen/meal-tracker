@@ -10,7 +10,7 @@ export interface MealDayData {
   recordId?: string
   status: FoodStatus
   food?: string
-  mealImageUrl?: string
+  hasImage?: boolean
   reason?: string
   recordedBy?: string
   recordedByUserId?: string
@@ -49,7 +49,7 @@ export interface MealRecordRow {
   date: string
   had_meal: boolean
   meal_name: string | null
-  meal_image_url: string | null
+  has_image: boolean
   reason: string | null
   recorded_by: string
   created_at: string
@@ -61,6 +61,7 @@ export interface MealRecordRow {
 }
 
 export interface HolidayRow {
+  id?: string
   date: string
   name: string
 }
@@ -72,44 +73,116 @@ export interface ProfileSummary {
   avatar_url?: string | null
 }
 
-export async function fetchMealRangeData(startDate: Date, endDate: Date) {
-  const startDateStr = formatDateOnly(startDate)
-  const endDateStr = formatDateOnly(endDate)
+// Photo payloads never belong in calendar/statistics responses.
+export const MEAL_SUMMARY_COLUMNS = 'id,date,had_meal,meal_name,reason,recorded_by,created_at,team'
+const PAGE_SIZE = 200
 
-  const [recordsResult, holidaysResult, ratingsResult] = await Promise.all([
-    supabase
-      .from('meal_records')
-      .select('*')
-      .gte('date', startDateStr)
-      .lte('date', endDateStr)
-      .returns<MealRecordRow[]>(),
-    supabase
-      .from('holidays')
-      .select('date, name')
-      .gte('date', startDateStr)
-      .lte('date', endDateStr)
-      .returns<HolidayRow[]>(),
-    supabase
-      .rpc('get_meal_rating_summaries', { p_start_date: startDateStr, p_end_date: endDateStr })
-      .returns<MealRatingSummary[]>(),
-  ])
-
-  if (recordsResult.error) throw recordsResult.error
-  if (holidaysResult.error) throw holidaysResult.error
-  if (ratingsResult.error) throw ratingsResult.error
-
-  const ratingsByRecordId = new Map((ratingsResult.data || []).map((rating) => [rating.meal_record_id, rating]))
-  const records = (recordsResult.data || []).map((record) => {
-    const rating = ratingsByRecordId.get(record.id)
-    return rating
-      ? { ...record, rating_sum: rating.rating_sum, rating_count: rating.rating_count, rating_average: rating.rating_average, my_rating: rating.my_rating }
-      : record
-  })
-
-  return {
-    records,
-    holidays: holidaysResult.data || [],
+async function fetchMealSummaries(start: string, end: string) {
+  const records: MealRecordRow[] = []
+  let cursor: string | undefined
+  while (true) {
+    let query = supabase.from('meal_records').select(MEAL_SUMMARY_COLUMNS)
+      .gte('date', start).lte('date', end).order('date').limit(PAGE_SIZE)
+    if (cursor) query = query.gt('date', cursor)
+    const { data, error } = await query
+    if (error) throw error
+    const page = data || []
+    records.push(...page.map((record) => ({ ...record, has_image: false })))
+    if (page.length < PAGE_SIZE) break
+    cursor = page[page.length - 1].date
   }
+  return records
+}
+
+async function fetchImageDates(start: string, end: string) {
+  const dates = new Set<string>()
+  let cursor: string | undefined
+  while (true) {
+    let query = supabase.from('meal_records').select('id,date')
+      .gte('date', start).lte('date', end).not('meal_image_url', 'is', null)
+      .neq('meal_image_url', '').order('date').limit(PAGE_SIZE)
+    if (cursor) query = query.gt('date', cursor)
+    const { data, error } = await query
+    if (error) throw error
+    const page = data || []
+    page.forEach((record) => dates.add(record.date))
+    if (page.length < PAGE_SIZE) break
+    cursor = page[page.length - 1].date
+  }
+  return dates
+}
+
+async function fetchHolidays(start: string, end: string) {
+  const rows: HolidayRow[] = []
+  let cursor: string | undefined
+  while (true) {
+    let query = supabase.from('holidays').select('id,date,name')
+      .gte('date', start).lte('date', end).order('date').limit(PAGE_SIZE)
+    if (cursor) query = query.gt('date', cursor)
+    const { data, error } = await query
+    if (error) throw error
+    const page = data || []
+    rows.push(...page)
+    if (page.length < PAGE_SIZE) break
+    cursor = page[page.length - 1].date
+  }
+  return rows
+}
+
+export async function fetchMealRangeData(startDate: Date, endDate: Date) {
+  const start = formatDateOnly(startDate)
+  const end = formatDateOnly(endDate)
+  const [records, holidays, imageDates] = await Promise.all([
+    fetchMealSummaries(start, end), fetchHolidays(start, end), fetchImageDates(start, end),
+  ])
+  // Bound RPC responses too, so a multi-year range cannot silently hit the API row cap.
+  const ratings: MealRatingSummary[] = []
+  for (let offset = 0; offset < records.length; offset += PAGE_SIZE) {
+    const page = records.slice(offset, offset + PAGE_SIZE)
+    const { data, error } = await supabase.rpc('get_meal_rating_summaries', {
+      p_start_date: page[0].date, p_end_date: page[page.length - 1].date,
+    }).returns<MealRatingSummary[]>()
+    if (error) throw error
+    ratings.push(...(data || []))
+  }
+  const ratingsById = new Map(ratings.map((rating) => [rating.meal_record_id, rating]))
+  return {
+    records: records.map((record) => {
+      const rating = ratingsById.get(record.id)
+      return {
+        ...record, has_image: imageDates.has(record.date),
+        rating_sum: rating?.rating_sum || 0, rating_count: rating?.rating_count || 0,
+        rating_average: rating?.rating_average ?? null, my_rating: rating?.my_rating ?? null,
+      }
+    }),
+    holidays,
+  }
+}
+
+export async function fetchMealNeighbor(date: string, direction: 'previous' | 'next', voting: boolean) {
+  let query = supabase.from('meal_records').select('id,date').eq('had_meal', true)
+    .gte('date', formatDateOnly(MEAL_TRACKING_START))
+    .lte('date', formatDateOnly(new Date()))
+  if (!voting) query = query.not('meal_image_url', 'is', null).neq('meal_image_url', '')
+  query = direction === 'previous' ? query.lt('date', date) : query.gt('date', date)
+  const { data, error } = await query.order('date', { ascending: direction === 'next' }).limit(1).maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function fetchLatestVotingMeal() {
+  const { data, error } = await supabase.from('meal_records').select('id,date')
+    .eq('had_meal', true).gte('date', formatDateOnly(MEAL_TRACKING_START))
+    .lte('date', formatDateOnly(new Date())).order('date', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function fetchMealImage(recordId: string) {
+  const { data, error } = await supabase.from('meal_records').select('meal_image_url')
+    .eq('id', recordId).maybeSingle()
+  if (error) throw error
+  return data?.meal_image_url || null
 }
 
 export async function fetchProfilesByIds(userIds: string[]) {
@@ -162,7 +235,6 @@ export function buildMealDayDataRange(
     let status: FoodStatus = 'empty'
     let food: string | undefined
     let reason: string | undefined
-    let mealImageUrl: string | undefined
     let recordedBy: string | undefined
     let recordedByUserId: string | undefined
     let recordedAt: string | undefined
@@ -171,7 +243,6 @@ export function buildMealDayDataRange(
     if (record) {
       status = record.had_meal ? 'volt' : 'nem'
       food = record.meal_name || undefined
-      mealImageUrl = record.meal_image_url || undefined
       reason = record.reason || undefined
       recordedByUserId = record.recorded_by
       team = (record.team as TeamCode) || undefined
@@ -186,7 +257,7 @@ export function buildMealDayDataRange(
       recordId: record?.id,
       status,
       food,
-      mealImageUrl,
+      hasImage: record?.has_image ?? false,
       reason,
       recordedBy,
       recordedByUserId,

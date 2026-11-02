@@ -1,7 +1,7 @@
 "use client"
 
 import type { ChangeEvent } from "react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { X, Check, XIcon, Trash2, ImagePlus, Trash, ChevronLeft, ChevronRight, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,21 +17,9 @@ import {
 
 import { useAuth } from "@/components/auth/AuthGuard"
 
-interface DayData {
-  date: Date
-  recordId?: string
-  status: "volt" | "nem" | "empty"
-  food?: string
-  mealImageUrl?: string
-  reason?: string
-  recordedBy?: string
-  recordedByUserId?: string
-  recordedAt?: string
-  team?: "A" | "B"
-  ratingAverage?: number | null
-  ratingCount?: number
-  myRating?: number | null
-}
+import type { MealDayData as DayData } from '@/lib/meal-domain'
+import { useMealImage } from './useMealImage'
+import { MealPhoto } from './MealPhoto'
 
 interface DayModalProps {
   day: DayData
@@ -43,7 +31,11 @@ interface DayModalProps {
   isDeletePending?: boolean
   isRatingPending?: boolean
   isVotingMode?: boolean
-  imageDays?: DayData[]
+  canMovePrevious?: boolean
+  canMoveNext?: boolean
+  navigationLoading?: boolean
+  navigationError?: boolean
+  onRetryNavigation?: () => void
   onImageNavigate?: (direction: "previous" | "next") => void
 }
 
@@ -77,7 +69,7 @@ function MealRatingControl({
   if (overlay || compact) {
     if (overlay) {
       return (
-        <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white/20 bg-black/25 px-3 py-2.5 shadow-sm backdrop-blur-sm">
+        <div className={`flex w-full flex-wrap items-center ${hasRated ? "justify-center" : "justify-between"} gap-2 rounded-xl border border-white/20 bg-black/60 px-3 py-2.5 shadow-sm backdrop-blur-sm`}>
           <div className="flex shrink-0 items-center gap-0" aria-label={hasRated ? `Saját értékelés: ${day.myRating} az 5 csillagból` : "Étel értékelése egytől ötig"}>
             {[1, 2, 3, 4, 5].map((value) => {
               const isActive = value <= (hasRated ? (day.myRating || 0) : (hoveredRating ?? selectedRating ?? 0))
@@ -105,7 +97,7 @@ function MealRatingControl({
           </div>
 
           {!hasRated && (
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 disabled={isPending}
@@ -121,7 +113,7 @@ function MealRatingControl({
                 type="button"
                 disabled={!selectedRating || isPending || !day.recordId}
                 onClick={() => selectedRating && onRate?.(day, selectedRating)}
-                className="h-8 rounded-md bg-amber-500 px-3 text-xs font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-8 rounded-md bg-amber-400 px-3 text-xs font-bold text-amber-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isPending ? "Mentés..." : "Szavazás"}
               </button>
@@ -332,10 +324,17 @@ export function DayModal({
   isDeletePending = false,
   isRatingPending = false,
   isVotingMode = false,
-  imageDays = [],
+  canMovePrevious = false,
+  canMoveNext = false,
+  navigationLoading = false,
+  navigationError = false,
+  onRetryNavigation,
   onImageNavigate,
 }: DayModalProps) {
   const { user } = useAuth()
+  const remoteImage = useMealImage(day.hasImage ? day.recordId : undefined)
+  const imageChanged = useRef(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const canEdit = day.status === "empty" || day.recordedByUserId === user?.id
   const isBusy = isSaving || isDeletePending
   const ratingKey = day.recordId ?? day.date.toISOString()
@@ -361,12 +360,15 @@ export function DayModal({
     }
   }
 
+  const [showEditForm, setShowEditForm] = useState(false)
+  const previousDayKey = useRef(ratingKey)
+
   const [hadFood, setHadFood] = useState<boolean | null>(
     day.status === "volt" ? true : day.status === "nem" ? false : null,
   )
   const [details, setDetails] = useState(day.food || day.reason || "")
   const [team, setTeam] = useState<"A" | "B">(day.team || getSuggestedTeam(day.date))
-  const [mealImageUrl, setMealImageUrl] = useState(day.mealImageUrl || "")
+  const [mealImageUrl, setMealImageUrl] = useState("")
   const [imageError, setImageError] = useState<string | null>(null)
   const [isPreparingImage, setIsPreparingImage] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
@@ -400,18 +402,37 @@ export function DayModal({
     }
   }
 
-  useEffect(() => {
-    setHadFood(day.status === "volt" ? true : day.status === "nem" ? false : null)
-    setDetails(day.food || day.reason || "")
+  // Keep the dialog shell mounted while paging. Only record-bound drafts and
+  // transient states reset; scroll locking, focus and the entrance animation
+  // belong to the lifetime of the open dialog, not the selected photo.
+  useLayoutEffect(() => {
+    if (previousDayKey.current === ratingKey) return
+    previousDayKey.current = ratingKey
+    imageChanged.current = false
+    setHadFood(day.status === 'volt' ? true : day.status === 'nem' ? false : null)
+    setDetails(day.food || day.reason || '')
     setTeam(day.team || getSuggestedTeam(day.date))
-    setMealImageUrl(day.mealImageUrl || "")
+    setMealImageUrl('')
     setImageError(null)
-  }, [day])
+    setIsPreparingImage(false)
+    setIsDeleteConfirmOpen(false)
+    setIsLightboxOpen(false)
+    setShowEditForm(false)
+    setDragOffset(0)
+    dragStartY.current = null
+    dragOffsetRef.current = 0
+  }, [ratingKey, day.status, day.food, day.reason, day.team, day.date])
+
+  useEffect(() => {
+    if (!imageChanged.current && remoteImage.status === 'ready') setMealImageUrl(remoteImage.url || '')
+  }, [ratingKey, remoteImage.status, remoteImage.url])
 
   useEffect(() => {
     const prev = document.body.style.overflow
+    const previousFocus = document.activeElement as HTMLElement | null
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
+    dialogRef.current?.focus()
+    return () => { document.body.style.overflow = prev; previousFocus?.focus() }
   }, [])
 
   const formatDate = (date: Date) => {
@@ -424,7 +445,8 @@ export function DayModal({
 
   const handleSave = () => {
     if (hadFood !== null) {
-      onSave(day, hadFood, details, team || undefined, hadFood ? mealImageUrl || undefined : undefined)
+      const savedImage = imageChanged.current ? mealImageUrl : remoteImage.url || mealImageUrl
+      onSave(day, hadFood, details, team || undefined, hadFood ? savedImage || undefined : undefined)
     }
   }
 
@@ -441,21 +463,24 @@ export function DayModal({
       return
     }
 
+    const preparingDayKey = ratingKey
     setIsPreparingImage(true)
     setImageError(null)
 
     try {
       const nextImageUrl = await resizeImageToDataUrl(file)
+      if (previousDayKey.current !== preparingDayKey) return
 
       if (nextImageUrl.length > 1_600_000) {
         throw new Error("A kép túl nagy lett mentéshez. Válassz kisebb képet.")
       }
 
+      imageChanged.current = true
       setMealImageUrl(nextImageUrl)
     } catch (error) {
-      setImageError(error instanceof Error ? error.message : "Nem sikerült feldolgozni a képet")
+      if (previousDayKey.current === preparingDayKey) setImageError(error instanceof Error ? error.message : "Nem sikerült feldolgozni a képet")
     } finally {
-      setIsPreparingImage(false)
+      if (previousDayKey.current === preparingDayKey) setIsPreparingImage(false)
       event.target.value = ""
     }
   }
@@ -463,6 +488,7 @@ export function DayModal({
   const handleHadFoodChange = (nextValue: boolean) => {
     setHadFood(nextValue)
     if (!nextValue) {
+      imageChanged.current = true
       setMealImageUrl("")
       setImageError(null)
     }
@@ -480,57 +506,37 @@ export function DayModal({
     }
   }
 
-  const [showEditForm, setShowEditForm] = useState(false)
-  const isImageLessVotingCard = isVotingMode && !day.mealImageUrl
-
-  const imageIndex = imageDays.findIndex((imageDay) => imageDay.date.getTime() === day.date.getTime())
-  const previousImageDay = imageIndex > 0 ? imageDays[imageIndex - 1] : undefined
-  const nextImageDay = imageIndex >= 0 ? imageDays[imageIndex + 1] : undefined
-  const canMovePrevious = Boolean(previousImageDay)
-  const canMoveNext = Boolean(nextImageDay)
+  const isImageLessVotingCard = isVotingMode && !day.hasImage
 
   useEffect(() => {
-    if ((!day.mealImageUrl && !isVotingMode) || showEditForm || (!canMovePrevious && !canMoveNext)) {
-      return
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose()
-        return
+      if (event.key === 'Escape' && !isBusy) { event.preventDefault(); onClose(); return }
+      if (event.key === 'Tab') {
+        const controls = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea, select, [tabindex="0"]')
+        if (!controls?.length) return
+        const first = controls[0]
+        const last = controls[controls.length - 1]
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+          event.preventDefault(); last.focus()
+        } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
+          event.preventDefault(); first.focus()
+        }
       }
-
-      if (event.key === "ArrowLeft" && canMovePrevious) {
-        event.preventDefault()
-        onImageNavigate?.("previous")
-      }
-
-      if (event.key === "ArrowRight" && canMoveNext) {
-        event.preventDefault()
-        onImageNavigate?.("next")
-      }
+      if (showEditForm || isBusy || isRatingPending || navigationLoading) return
+      if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [role="combobox"]')) return
+      if (event.key === 'ArrowLeft' && canMovePrevious) { event.preventDefault(); onImageNavigate?.('previous') }
+      if (event.key === 'ArrowRight' && canMoveNext) { event.preventDefault(); onImageNavigate?.('next') }
     }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [canMoveNext, canMovePrevious, isBusy, isRatingPending, navigationLoading, onClose, onImageNavigate, showEditForm])
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [canMoveNext, canMovePrevious, day.mealImageUrl, isVotingMode, onClose, onImageNavigate, showEditForm])
-
-  useEffect(() => {
-    const adjacentImageUrls = [previousImageDay?.mealImageUrl, nextImageDay?.mealImageUrl].filter(
-      (imageUrl): imageUrl is string => Boolean(imageUrl)
-    )
-
-    adjacentImageUrls.forEach((imageUrl) => {
-      const image = new Image()
-      image.decoding = "async"
-      image.src = imageUrl
-    })
-  }, [nextImageDay?.mealImageUrl, previousImageDay?.mealImageUrl])
+  const imageNotReady = Boolean(day.hasImage && !imageChanged.current && remoteImage.status !== 'ready')
 
   // Full-size image viewer modal by default when there is an image
-  if ((day.mealImageUrl || isVotingMode) && !showEditForm) {
+  if ((day.hasImage || isVotingMode) && !showEditForm) {
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Étkezés" tabIndex={-1} className="fixed inset-0 z-50 flex items-end justify-center">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
         <div
@@ -559,34 +565,28 @@ export function DayModal({
             className={`relative overflow-hidden ${isImageLessVotingCard ? "bg-emerald-50" : "bg-black"}`}
             style={{ height: "min(70vh, 133.333vw)" }}
           >
-            {day.mealImageUrl ? (
-              <img
-                src={day.mealImageUrl}
-                alt="Ételfotó"
-                className="h-full w-full object-contain"
-                loading="eager"
-                decoding="async"
-              />
+            {day.hasImage && day.recordId ? (
+              <MealPhoto key={day.recordId} recordId={day.recordId} />
             ) : (
               <div className="h-full w-full bg-emerald-50" aria-label="Ehhez az étkezéshez nincs feltöltött kép" />
             )}
 
-            {(imageDays.length > 1 || canMovePrevious || canMoveNext) && (
+            {(navigationLoading || canMovePrevious || canMoveNext) && (
               <>
                 <button
                   type="button"
-                  disabled={!canMovePrevious}
+                  disabled={!canMovePrevious || navigationLoading || isRatingPending}
                   onClick={() => onImageNavigate?.("previous")}
-                  aria-label="ElĹ‘zĹ‘ kĂ©p"
+                  aria-label="Előző kép"
                   className="absolute left-3 top-1/2 z-20 -translate-y-1/2 w-11 h-11 rounded-full bg-black/45 text-white backdrop-blur-sm flex items-center justify-center transition hover:bg-black/65 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
                   type="button"
-                  disabled={!canMoveNext}
+                  disabled={!canMoveNext || navigationLoading || isRatingPending}
                   onClick={() => onImageNavigate?.("next")}
-                  aria-label="KĂ¶vetkezĹ‘ kĂ©p"
+                  aria-label="Következő kép"
                   className="absolute right-3 top-1/2 z-20 -translate-y-1/2 w-11 h-11 rounded-full bg-black/45 text-white backdrop-blur-sm flex items-center justify-center transition hover:bg-black/65 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <ChevronRight className="w-6 h-6" />
@@ -598,19 +598,14 @@ export function DayModal({
             <div className={`absolute top-0 inset-x-0 h-16 pointer-events-none z-10 ${isImageLessVotingCard ? "bg-gradient-to-b from-emerald-100/60 to-transparent" : "bg-gradient-to-b from-black/50 to-transparent"}`} />
             {/* bottom info overlay */}
             <div className={`absolute bottom-0 inset-x-0 p-5 pt-16 z-10 ${isImageLessVotingCard ? "bg-emerald-50" : "bg-gradient-to-t from-black/90 via-black/50 to-transparent"}`}>
-              <div className="flex items-end justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className={isImageLessVotingCard ? "text-gray-700 text-xs mb-1" : "text-white/70 text-xs mb-1"}>{formatDate(day.date)}</p>
                   {day.food && (
-                    <h2 className={isImageLessVotingCard ? "text-gray-900 font-bold text-xl leading-tight" : "text-white font-bold text-xl leading-tight"}>{day.food}</h2>
+                    <h2 className={isImageLessVotingCard ? "text-gray-900 font-bold text-xl leading-tight break-words" : "text-white font-bold text-xl leading-tight break-words"}>{day.food}</h2>
                   )}
                   {day.recordedBy && (
                     <p className={isImageLessVotingCard ? "text-gray-600 text-xs mt-1.5" : "text-white/60 text-xs mt-1.5"}>{day.recordedBy}{day.recordedAt ? ` · ${day.recordedAt}` : ""}</p>
-                  )}
-                  {day.status === "volt" && (
-                    <div className="mt-2">
-                      <MealRatingControl key={ratingKey} day={day} onRate={onRate} isPending={isRatingPending} overlay />
-                    </div>
                   )}
                 </div>
                 {day.team && (
@@ -619,9 +614,19 @@ export function DayModal({
                   </div>
                 )}
               </div>
+              {day.status === "volt" && (
+                <div className="mt-3">
+                  <MealRatingControl key={ratingKey} day={day} onRate={onRate} isPending={isRatingPending} overlay />
+                </div>
+              )}
             </div>
           </div>
 
+          {navigationError && (
+            <div role="alert" className="bg-white px-5 pt-3 text-sm text-rose-700">
+              Nem sikerült betölteni a lapozást. <button type="button" onClick={onRetryNavigation} className="underline">Újrapróbálás</button>
+            </div>
+          )}
           {/* Buttons */}
           <div className="bg-white px-5 py-4 flex gap-3">
             <button
@@ -646,7 +651,7 @@ export function DayModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Étkezés" tabIndex={-1} className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={isBusy ? undefined : onClose} />
 
       <div
@@ -762,6 +767,7 @@ export function DayModal({
                     type="button"
                     disabled={isBusy}
                     onClick={() => {
+                      imageChanged.current = true
                       setMealImageUrl("")
                       setImageError(null)
                     }}
@@ -794,6 +800,11 @@ export function DayModal({
                 </button>
               )}
 
+              {imageNotReady && (
+                <p role="status" className="text-sm text-gray-600">
+                  {remoteImage.status === 'error' ? <>Nem sikerült betölteni a meglévő képet. <button type="button" onClick={remoteImage.retry} className="underline">Újrapróbálás</button></> : 'Meglévő kép betöltése...'}
+                </p>
+              )}
               {imageError && (
                 <p className="text-xs text-rose-600">{imageError}</p>
               )}
@@ -850,7 +861,7 @@ export function DayModal({
             {canEdit && (
               <Button
                 onClick={handleSave}
-                disabled={hadFood === null || isBusy}
+                disabled={hadFood === null || isBusy || isPreparingImage || imageNotReady}
                 className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer inline-flex items-center justify-center"
               >
                 {isSaving ? <Spinner className="size-4 text-white" /> : "Mentés"}

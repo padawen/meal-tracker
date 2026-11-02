@@ -57,7 +57,7 @@ export function UserCompletionRatio({
                             outerRadius={85}
                             paddingAngle={5}
                             dataKey="value"
-                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
                         >
                             {chartData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -68,6 +68,7 @@ export function UserCompletionRatio({
                             itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
                         />
                         <Legend
+                            itemSorter={null}
                             verticalAlign="bottom"
                             height={36}
                             iconType="circle"

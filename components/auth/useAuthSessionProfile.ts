@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 
@@ -12,138 +12,85 @@ export function useAuthSessionProfile() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<AuthProfile | null>(null)
+  const activeUser = useRef<string | null>(null)
+  const requestVersion = useRef(0)
 
-  const loadProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, avatar_url, is_admin, is_approved')
-      .eq('id', userId)
-      .maybeSingle<AuthProfile>()
-
-    if (error || !data) {
-      throw error || new Error('Profile not found')
+  // INITIAL_SESSION is the single initialization path; repeated SIGNED_IN and
+  // TOKEN_REFRESHED events for this user do not recreate the profile channel.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUser = session?.user ?? null
+      if (activeUser.current !== (nextUser?.id ?? null)) {
+        activeUser.current = nextUser?.id ?? null
+        requestVersion.current++
+        setProfile(null)
+        setLoading(Boolean(nextUser))
+      }
+      setUser(nextUser)
+      if (!nextUser) {
+        setLoading(false)
+        router.replace('/login')
+      }
+    })
+    return () => {
+      subscription.unsubscribe()
+      activeUser.current = null
+      requestVersion.current++
     }
-
-    setProfile(data)
-    return data
-  }, [])
-
-  const syncAvatar = useCallback(async (userToSync: User) => {
-    const freshAvatar = userToSync.user_metadata?.avatar_url || userToSync.user_metadata?.picture || null
-    if (!freshAvatar) return
-
-    await supabase.from('profiles').update({ avatar_url: freshAvatar }).eq('id', userToSync.id)
-  }, [])
-
-  const refreshProfile = useCallback(async () => {
-    if (!user?.id) return
-    await loadProfile(user.id)
-  }, [loadProfile, user?.id])
-
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-    setProfile(null)
-    router.push('/login')
   }, [router])
 
+  const userId = user?.id
+  const loadProfile = useCallback(async () => {
+    if (!userId || activeUser.current !== userId) return
+    const version = ++requestVersion.current
+    const { data, error } = await supabase.from('profiles')
+      .select('id, email, full_name, avatar_url, is_admin, is_approved')
+      .eq('id', userId).maybeSingle<AuthProfile>()
+    if (activeUser.current !== userId || version !== requestVersion.current) return
+    if (error || !data) throw error || new Error('Profile not found')
+    setProfile(data)
+    setLoading(false)
+  }, [userId])
+
   useEffect(() => {
-    let isMounted = true
-    let profileChannel: ReturnType<typeof supabase.channel> | null = null
-
-    const subscribeToProfile = (userId: string) => {
-      if (profileChannel) {
-        supabase.removeChannel(profileChannel)
-      }
-
-      profileChannel = supabase
-        .channel(`public:profiles:id=eq.${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${userId}`,
-          },
-          async () => {
-            if (isMounted) {
-              await loadProfile(userId)
-            }
-          }
-        )
-        .subscribe()
-    }
-
-    const hydrateAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session?.user) {
-          if (isMounted) {
-            setUser(null)
-            setProfile(null)
-            setLoading(false)
-          }
-          router.push('/login')
-          return
-        }
-
-        if (isMounted) {
-          setUser(session.user)
-        }
-
-        await loadProfile(session.user.id)
-        syncAvatar(session.user).catch((err) => console.error('Failed background avatar sync:', err))
-        subscribeToProfile(session.user.id)
-      } catch (error) {
-        console.error('Auth guard initialization failed:', error)
-        if (isMounted) {
-          setUser(null)
-          setProfile(null)
-        }
-        router.push('/login')
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    hydrateAuth()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        setUser(null)
-        setProfile(null)
-        if (profileChannel) supabase.removeChannel(profileChannel)
-        router.push('/login')
-        return
-      }
-
-      setUser(session.user)
-      loadProfile(session.user.id).catch((error) => {
-        console.error('Failed to refresh auth profile:', error)
+    if (!userId) return
+    let active = true
+    const refresh = () => {
+      void loadProfile().catch((error) => {
+        if (!active) return
+        console.error('Failed to load auth profile:', error)
+        setLoading(false)
+        router.replace('/login')
       })
-      subscribeToProfile(session.user.id)
-    })
-
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-      if (profileChannel) supabase.removeChannel(profileChannel)
     }
-  }, [loadProfile, router, syncAvatar])
+    // A unique topic also isolates Strict Mode's delayed asynchronous cleanup.
+    const channel = supabase.channel(`profile:${userId}:${crypto.randomUUID()}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}`,
+      }, refresh).subscribe()
+    refresh()
+    return () => {
+      active = false
+      requestVersion.current++
+      void supabase.removeChannel(channel)
+    }
+  }, [loadProfile, router, userId])
 
-  return {
-    loading,
-    profile,
-    refreshProfile,
-    signOut,
-    user,
-  }
+  const avatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
+  useEffect(() => {
+    if (!userId || !profile || !avatar || profile.avatar_url === avatar) return
+    void supabase.from('profiles').update({ avatar_url: avatar }).eq('id', userId)
+      .then(({ error }) => { if (error) console.error('Failed background avatar sync:', error) })
+  }, [avatar, profile, userId])
+
+  const signOut = useCallback(async () => {
+    activeUser.current = null
+    requestVersion.current++
+    setUser(null)
+    setProfile(null)
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }, [router])
+
+  return { loading, profile, refreshProfile: loadProfile, signOut, user }
 }

@@ -117,7 +117,7 @@ export async function saveMealAction(
         }
 
         if (error.message?.includes('row-level security policy')) {
-            return { success: false, error: 'Az adatbázis még a régi dátumszabályt használja. Futtasd le a legfrissebb migrációt.' }
+            return { success: false, error: 'Nincs jogosultságod a bejegyzés mentéséhez.' }
         }
 
         return { success: false, error: error.message || 'Database error' }

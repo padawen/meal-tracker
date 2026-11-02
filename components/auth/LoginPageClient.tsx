@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
@@ -145,6 +146,9 @@ export function LoginPageClient({ initialError, nextPath }: LoginPageClientProps
               </DialogTrigger>
               <DialogContent className="sm:max-w-md border-none shadow-2xl p-8 bg-white dark:bg-gray-900">
                 <DialogTitle className="sr-only">Bejelentkezés</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Jelentkezz be az e-mail-címeddel és a jelszavaddal.
+                </DialogDescription>
                 {modalError && (
                   <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="text-sm text-red-600 dark:text-red-400 text-center">{modalError}</p>

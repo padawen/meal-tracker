@@ -2,6 +2,12 @@
 const nextConfig = {
   typedRoutes: true,
   async headers() {
+    // Analytics uses an external debug script only during development;
+    // production loads /_vercel/insights/script.js from this origin.
+    const analyticsDebugSource = process.env.NODE_ENV === 'development'
+      ? ' https://va.vercel-scripts.com/v1/script.debug.js'
+      : ''
+
     return [
       {
         source: '/:path*',
@@ -38,7 +44,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              `script-src 'self' 'unsafe-inline' 'unsafe-eval'${analyticsDebugSource}`,
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://*.googleusercontent.com https://*.supabase.co",

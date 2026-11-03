@@ -5,6 +5,12 @@ import { publicEnv } from '@/lib/env'
 import type { Database } from '@/lib/supabase/database.types'
 import { sanitizeNextPath } from '@/lib/utils'
 
+// These identify module reuse, not a platform cold start. No auth data is shared.
+const moduleStartedAt = performance.now()
+const runtimeInstance = crypto.randomUUID().slice(0, 8)
+let runtimeRequests = 0
+let runtimeProfileRequests = 0
+
 function isProtectedRoute(pathname: string) {
   return pathname === '/' || pathname.startsWith('/statistics') || pathname.startsWith('/admin')
 }
@@ -46,11 +52,35 @@ function loginRedirect(request: NextRequest, supabaseResponse: NextResponse) {
 
 export async function proxy(request: NextRequest) {
   const start = performance.now()
+  const requestOrdinal = ++runtimeRequests
+  let profileStart: number | null = null
+  const profileAttempts: Array<{ start: number; end: number; ordinal: number; upstream?: number }> = []
   let supabaseResponse = NextResponse.next({
     request,
   })
 
   const supabase = createServerClient<Database>(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
+    global: {
+      fetch: async (input, init) => {
+        const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+        if (profileStart === null || url.pathname !== '/rest/v1/profiles') {
+          return fetch(input, init)
+        }
+
+        const attempt = { start: performance.now(), end: 0, ordinal: ++runtimeProfileRequests, upstream: undefined as number | undefined }
+        profileAttempts.push(attempt)
+        try {
+          const response = await fetch(input, init)
+          const upstream = response.headers.get('x-envoy-upstream-service-time')
+          if (upstream?.trim() && Number.isFinite(Number(upstream)) && Number(upstream) >= 0) {
+            attempt.upstream = Number(upstream)
+          }
+          return response
+        } finally {
+          attempt.end = performance.now()
+        }
+      },
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll()
@@ -90,13 +120,41 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
-  const profileStart = performance.now()
+  profileStart = performance.now()
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, is_admin, is_approved')
     .eq('id', userId)
     .maybeSingle()
-  supabaseResponse.headers.set('Server-Timing', `auth;dur=${authDuration.toFixed(1)}, profile;dur=${(performance.now() - profileStart).toFixed(1)}`)
+  const profileEnd = performance.now()
+  const metrics = [`auth;dur=${authDuration.toFixed(1)}`, `profile;dur=${(profileEnd - profileStart).toFixed(1)}`]
+  const firstAttempt = profileAttempts[0]
+  if (firstAttempt) {
+    const lastAttempt = profileAttempts[profileAttempts.length - 1]
+    const httpDuration = profileAttempts.reduce((total, attempt) => total + attempt.end - attempt.start, 0)
+    const retryWait = profileAttempts.reduce((total, attempt, index) => total + (index ? attempt.start - profileAttempts[index - 1].end : 0), 0)
+    metrics.push(
+      `profile_prepare;dur=${(firstAttempt.start - profileStart).toFixed(1)}`,
+      `profile_http;dur=${httpDuration.toFixed(1)}`,
+      `profile_finish;dur=${(profileEnd - lastAttempt.end).toFixed(1)}`,
+      // Includes processing between retries as well as the SDK backoff.
+      `profile_retry_wait;dur=${retryWait.toFixed(1)}`,
+      `profile_attempts;desc="${profileAttempts.length}"`,
+      `runtime_profile;desc="${firstAttempt.ordinal}"`,
+    )
+    // Envoy reports upstream service + network time, not SQL execution time.
+    if (profileAttempts.every((attempt) => attempt.upstream !== undefined)) {
+      metrics.push(`profile_upstream;dur=${profileAttempts.reduce((total, attempt) => total + attempt.upstream!, 0).toFixed(1)}`)
+    }
+  }
+  const region = process.env.VERCEL_REGION ?? 'unknown'
+  metrics.push(
+    `runtime_region;desc="${/^[a-z0-9-]+$/i.test(region) ? region : 'unknown'}"`,
+    `runtime_instance;desc="${runtimeInstance}"`,
+    `runtime_request;desc="${requestOrdinal}"`,
+    `module_age;dur=${(start - moduleStartedAt).toFixed(1)}`,
+  )
+  supabaseResponse.headers.set('Server-Timing', metrics.join(', '))
 
   if (profileError || !profile) {
     return loginRedirect(request, supabaseResponse)

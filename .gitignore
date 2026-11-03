@@ -37,10 +37,9 @@ next-env.d.ts
 .mcp.json
 /.impeccable/config.local.json
 
-# local deployment state and SQL snapshots
+# local deployment state and retired Supabase setup artifacts
 /.vercel/
-/supabase/.temp/
-/supabase/migrations/
+/supabase/
 .git_old
 
 # operating system and package-manager logs
